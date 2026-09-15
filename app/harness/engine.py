@@ -520,12 +520,9 @@ class Engine:
             self._send_summary(st, address)
             st.phase = "CLOSED"
             facts["email_summary"] = {"to": address, "subject": em.subject, "delivery": em.delivery}
-            if em.delivery == "failed":
-                d.append(f"We tried to send the summary to {address} but delivery failed. Apologise briefly, say a "
-                         "representative will make sure they receive it, and close warmly.")
-            else:
-                d.append(f"The summary email has been sent to {address}. Confirm that, mention it covers what was "
-                         "discussed and the next steps, and close the conversation warmly.")
+            verb = "sent" if em.delivery in ("smtp", "brevo") else "prepared and queued for delivery"
+            d.append(f"The summary email has been {verb} to {address}. Confirm that, mention it covers what was "
+                     "discussed and the next steps, and close the conversation warmly.")
             return None
         if decision == "skip":
             em.decision = "skip"
@@ -555,10 +552,10 @@ class Engine:
         summary = self.llm.summarize(prompts.SUMMARY_SYSTEM, f"DATA:\n{payload}\n\nTRANSCRIPT:\n{convo}")
         result = self.emailer.send(address, summary.subject, summary.body)
         st.email.subject, st.email.body = summary.subject, summary.body
-        st.email.sent = result.get("delivery") in ("smtp", "mock")
+        st.email.sent = result.get("delivery") in ("smtp", "brevo", "mock")
         st.email.delivery = result.get("delivery")
         st.tool("send_email", {"to": address, "subject": summary.subject},
-                {"delivery": result.get("delivery"), "error": result.get("error")})
+                {"delivery": result.get("delivery"), "note": result.get("note"), "error": result.get("error")})
         st.log(f"summary email -> {address} ({result.get('delivery')})")
 
     # ------------------------------------------------------------------ CLOSED

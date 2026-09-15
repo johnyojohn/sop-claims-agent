@@ -194,8 +194,10 @@ email that was sent.
 | _(neither set)_ | The summary is captured in an on-screen mock outbox instead, so the demo never breaks. |
 | `DEMO_TODAY` | The fixtures are dated early 2026, so the demo clock defaults to `2026-03-02` to keep the appeal deadline in the future. Set it empty to use the real date. |
 
-The hosted demo has real delivery configured, so the summary email arrives at
-whatever address you give the agent.
+The hosted demo runs on Render's free tier, which blocks outbound SMTP, so
+there the summary lands in the on-screen mock outbox (the debug panel shows
+the full email and the delivery status). Run it locally or in Docker with
+SMTP settings and the same email is actually delivered.
 
 ### Deploying to Render
 

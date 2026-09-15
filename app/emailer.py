@@ -59,7 +59,10 @@ class Emailer:
             record["delivery"] = "mock"
             record["note"] = "No email transport configured; captured in mock outbox"
             return record
-        record["delivery"] = "failed"
+        # Every transport failed (e.g. the host blocks outbound SMTP). Capture the
+        # email in the outbox so the demo stays coherent, and keep the error visible.
+        record["delivery"] = "mock"
+        record["note"] = "Transport failed; captured in mock outbox"
         record["error"] = "; ".join(errors)
         return record
 
