@@ -6,7 +6,7 @@ still talking like a person. The LLM interprets and phrases; a deterministic
 harness owns the phase order, the safety gates, the allowed actions, and what
 facts the model is allowed to see on each turn.
 
-- **Hosted demo:** https://claims-sop-agent.onrender.com (free tier: first request after idle takes about a minute to wake)
+- **Hosted demo:** https://claims-sop-agent.onrender.com
 - **Stack:** Python 3.12, FastAPI, Anthropic SDK (Claude Opus 5 by default), one static HTML page. No database, no framework magic.
 
 ---
@@ -205,16 +205,17 @@ email that was sent.
 | _(neither set)_ | The summary is captured in an on-screen mock outbox instead, so the demo never breaks. |
 | `DEMO_TODAY` | The fixtures are dated early 2026, so the demo clock defaults to `2026-03-02` to keep the appeal deadline in the future. Set it empty to use the real date. |
 
-The hosted demo runs on Render's free tier, which blocks outbound SMTP, so
-there the summary lands in the on-screen mock outbox (the debug panel shows
-the full email and the delivery status). Run it locally or in Docker with
-SMTP settings and the same email is actually delivered.
+The hosted demo has real SMTP delivery configured, so the summary arrives at
+whatever address you give the agent (the debug panel also shows the full
+email and the delivery status). Without SMTP settings the summary lands in
+the on-screen mock outbox instead.
 
 ### Deploying to Render
 
 `render.yaml` is included. New → Blueprint → pick the repo, fill in the secret
-env vars, deploy. Free instances sleep after 15 minutes idle and take about a
-minute to wake on the first request.
+env vars, deploy. Note that Render's free instance type blocks outbound SMTP
+and sleeps when idle; the demo runs on a Starter instance so email delivery
+works and there is no cold start.
 
 ---
 
