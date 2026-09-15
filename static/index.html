@@ -1,0 +1,267 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Claims SOP Agent</title>
+<style>
+  :root {
+    --bg: #f4f5f7; --panel: #fff; --ink: #1c1f23; --muted: #6b7280; --line: #e3e6ea;
+    --accent: #1f5eff; --accent-soft: #e8efff; --ok: #1a8f4e; --warn: #c2410c; --bad: #b91c1c;
+    --agent: #eef1f5; --user: #1f5eff;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; font: 14px/1.5 -apple-system, "Segoe UI", Inter, Roboto, sans-serif; color: var(--ink); background: var(--bg); }
+  header { display: flex; align-items: center; gap: 14px; padding: 10px 18px; background: var(--panel); border-bottom: 1px solid var(--line); flex-wrap: wrap; }
+  header h1 { font-size: 16px; margin: 0; }
+  header .sub { color: var(--muted); font-size: 12px; }
+  header .spacer { flex: 1; }
+  select, button, input[type=text], textarea { font: inherit; }
+  button { border: 1px solid var(--line); background: var(--panel); border-radius: 8px; padding: 6px 10px; cursor: pointer; }
+  button:hover { border-color: var(--accent); color: var(--accent); }
+  button.primary { background: var(--accent); color: #fff; border-color: var(--accent); }
+  button.primary:disabled { opacity: .5; cursor: default; }
+  .layout { display: grid; grid-template-columns: minmax(0, 1fr) 400px; gap: 16px; padding: 16px; max-width: 1400px; margin: 0 auto; }
+  @media (max-width: 960px) { .layout { grid-template-columns: 1fr; } }
+  .card { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; }
+  .chat { display: flex; flex-direction: column; height: calc(100vh - 92px); min-height: 520px; }
+  .msgs { flex: 1; overflow-y: auto; padding: 18px; display: flex; flex-direction: column; gap: 10px; }
+  .msg { max-width: 78%; padding: 10px 14px; border-radius: 14px; white-space: pre-wrap; word-wrap: break-word; }
+  .msg.agent { background: var(--agent); align-self: flex-start; border-bottom-left-radius: 4px; }
+  .msg.user { background: var(--user); color: #fff; align-self: flex-end; border-bottom-right-radius: 4px; }
+  .msg.sys { align-self: center; color: var(--muted); font-size: 12px; background: none; }
+  .msg.err { align-self: center; color: var(--bad); font-size: 12px; background: #fee2e2; }
+  .typing { color: var(--muted); font-size: 12px; padding: 0 18px 6px; height: 18px; }
+  .composer { display: flex; gap: 8px; padding: 12px; border-top: 1px solid var(--line); }
+  .composer textarea { flex: 1; resize: none; height: 44px; padding: 10px 12px; border: 1px solid var(--line); border-radius: 10px; }
+  .samples { display: flex; flex-wrap: wrap; gap: 6px; padding: 8px 12px 0; }
+  .samples button { font-size: 12px; padding: 4px 8px; border-radius: 999px; }
+  .side { display: flex; flex-direction: column; gap: 12px; max-height: calc(100vh - 92px); overflow-y: auto; }
+  .side .card { padding: 12px 14px; }
+  .side h3 { margin: 0 0 8px; font-size: 12px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); }
+  .phases { display: flex; gap: 4px; }
+  .phase { flex: 1; text-align: center; font-size: 11px; padding: 6px 2px; border-radius: 6px; background: #f0f2f5; color: var(--muted); border: 1px solid transparent; }
+  .phase.done { background: #e6f6ec; color: var(--ok); }
+  .phase.active { background: var(--accent-soft); color: var(--accent); border-color: var(--accent); font-weight: 600; }
+  .phase.term { background: #fff3e8; color: var(--warn); border-color: var(--warn); font-weight: 600; }
+  .kv { display: grid; grid-template-columns: 120px 1fr; gap: 3px 8px; font-size: 13px; }
+  .kv .k { color: var(--muted); }
+  .pill { display: inline-block; padding: 1px 8px; border-radius: 999px; font-size: 12px; background: #f0f2f5; margin: 1px 2px 1px 0; }
+  .pill.ok { background: #e6f6ec; color: var(--ok); }
+  .pill.bad { background: #fee2e2; color: var(--bad); }
+  .pill.warn { background: #fff3e8; color: var(--warn); }
+  .log { font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 11.5px; color: #374151; max-height: 180px; overflow-y: auto; white-space: pre-wrap; }
+  details summary { cursor: pointer; color: var(--muted); font-size: 12px; }
+  .outbox { font-size: 12.5px; white-space: pre-wrap; background: #fafbfc; border: 1px dashed var(--line); padding: 8px; border-radius: 8px; }
+  .note { font-size: 12px; color: var(--muted); }
+</style>
+</head>
+<body>
+<header>
+  <div>
+    <h1>Northwind Insurance · Claims SOP Agent</h1>
+    <div class="sub">VERIFY_ID → RESOLVE_INTENT → PROCESS_CASE → POST_PROCESS, LLM-phrased, SOP-controlled</div>
+  </div>
+  <div class="spacer"></div>
+  <label class="note">Consent scenario
+    <select id="scenario"><option value="default">default (approves)</option><option value="timeout">timeout</option></select>
+  </label>
+  <label class="note">API key override <input type="text" id="apikey" placeholder="optional, sk-ant-…" size="22"></label>
+  <button id="reset">New conversation</button>
+</header>
+
+<div class="layout">
+  <div class="card chat">
+    <div class="samples" id="samples"></div>
+    <div class="msgs" id="msgs"></div>
+    <div class="typing" id="typing"></div>
+    <div class="composer">
+      <textarea id="input" placeholder="Type as the caller… (Enter to send, Shift+Enter for newline)"></textarea>
+      <button class="primary" id="send">Send</button>
+    </div>
+  </div>
+
+  <div class="side">
+    <div class="card">
+      <h3>Workflow phase</h3>
+      <div class="phases" id="phases"></div>
+      <div id="phaseNote" class="note" style="margin-top:6px"></div>
+    </div>
+    <div class="card">
+      <h3>Identity gate</h3>
+      <div class="kv" id="verify"></div>
+    </div>
+    <div class="card">
+      <h3>Memory (captured in any phase)</h3>
+      <div class="kv" id="memory"></div>
+    </div>
+    <div class="card">
+      <h3>Caller signals</h3>
+      <div class="kv" id="signals"></div>
+    </div>
+    <div class="card">
+      <h3>This turn: controller directives</h3>
+      <div class="log" id="directives"></div>
+    </div>
+    <div class="card">
+      <h3>Harness events</h3>
+      <div class="log" id="events"></div>
+    </div>
+    <div class="card">
+      <h3>Tool calls</h3>
+      <div class="log" id="tools"></div>
+    </div>
+    <div class="card" id="outboxCard" hidden>
+      <h3>Email summary</h3>
+      <div class="outbox" id="outbox"></div>
+    </div>
+    <div class="card">
+      <h3>Test data</h3>
+      <div class="note" id="testdata">Loading…</div>
+    </div>
+  </div>
+</div>
+
+<script>
+const $ = (id) => document.getElementById(id);
+const PHASES = ["VERIFY_ID", "RESOLVE_INTENT", "PROCESS_CASE", "POST_PROCESS"];
+let session = null, busy = false;
+
+const SAMPLES = [
+  ["Demo test case", "I'm the policyholder. My name is Margaret Chen, policy POL-9921. I'm calling about my denied healthcare claim from January. DOB is 1985-03-15, SSN last four is 4472."],
+  ["Partial info", "Hi, this is Margaret Chen, I need to check on a claim."],
+  ["Angry caller", "I already told you who I am. This is ridiculous. Just tell me why my claim was denied."],
+  ["Wrong DOB", "Margaret Chen, POL-9921, date of birth 1985-03-16, last four 4472."],
+  ["Alt fields", "My phone on file is 650-521-2836 and my email is margaret@email.com."],
+  ["Representative", "Hi, I'm David Chen calling for my mother Margaret Chen about her claim."],
+  ["Off topic", "Quick question before that, what is reinforcement learning?"],
+  ["Ask for human", "Can I just talk to a real person?"],
+  ["Done", "No, that's everything, thanks."],
+];
+
+function addMsg(text, cls) {
+  const div = document.createElement("div");
+  div.className = "msg " + cls;
+  div.textContent = text;
+  $("msgs").appendChild(div);
+  $("msgs").scrollTop = $("msgs").scrollHeight;
+}
+
+function headers() {
+  const h = {"Content-Type": "application/json"};
+  const k = $("apikey").value.trim();
+  if (k) h["X-API-Key"] = k;
+  return h;
+}
+
+async function newSession() {
+  $("msgs").innerHTML = "";
+  session = null;
+  render(null);
+  try {
+    const r = await fetch("/api/session", {method: "POST", headers: headers(),
+      body: JSON.stringify({consent_scenario: $("scenario").value})});
+    const j = await r.json();
+    if (!r.ok) throw new Error(j.detail || r.statusText);
+    session = j.session_id;
+    addMsg(j.greeting, "agent");
+    render(j.state);
+  } catch (e) { addMsg("Could not start session: " + e.message, "err"); }
+}
+
+async function send() {
+  const text = $("input").value.trim();
+  if (!text || !session || busy) return;
+  busy = true; $("send").disabled = true; $("input").value = "";
+  addMsg(text, "user");
+  $("typing").textContent = "Ava is typing…";
+  try {
+    const r = await fetch(`/api/session/${session}/message`, {method: "POST", headers: headers(), body: JSON.stringify({text})});
+    const j = await r.json();
+    if (!r.ok) throw new Error(j.detail || r.statusText);
+    addMsg(j.reply, "agent");
+    render(j.state);
+  } catch (e) { addMsg("Error: " + e.message, "err"); }
+  finally { busy = false; $("send").disabled = false; $("typing").textContent = ""; $("input").focus(); }
+}
+
+function pill(text, cls) { return `<span class="pill ${cls || ""}">${esc(text)}</span>`; }
+function esc(s) { return String(s).replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c])); }
+function kv(pairs) { return pairs.map(([k, v]) => `<div class="k">${esc(k)}</div><div>${v}</div>`).join(""); }
+
+function render(s) {
+  const phases = $("phases"); phases.innerHTML = "";
+  const cur = s ? s.phase : "VERIFY_ID";
+  const idx = PHASES.indexOf(cur);
+  PHASES.forEach((p, i) => {
+    const d = document.createElement("div");
+    d.className = "phase " + (idx === -1 ? (s && s.phase === "CLOSED" ? "done" : "") : (i < idx ? "done" : i === idx ? "active" : ""));
+    d.textContent = p.replace("_", " ");
+    phases.appendChild(d);
+  });
+  if (s && (s.phase === "CLOSED" || s.phase === "ESCALATED")) {
+    const d = document.createElement("div"); d.className = "phase term"; d.textContent = s.phase; phases.appendChild(d);
+  }
+  $("phaseNote").textContent = s && s.escalation_reason ? "Escalated: " + s.escalation_reason :
+    (s && s.phase === "VERIFY_ID" ? "Claim data is NOT in the model's context in this phase." :
+     s && s.phase === "CLOSED" ? "Conversation complete. A new claim question reopens it." : "");
+  if (!s) { ["verify","memory","signals"].forEach(id => $(id).innerHTML = ""); ["directives","events","tools"].forEach(id => $(id).textContent = ""); $("outboxCard").hidden = true; return; }
+
+  const v = s.verification;
+  const statusCls = v.status === "verified" ? "ok" : v.status === "failed" ? "bad" : v.status === "consent_pending" ? "warn" : "";
+  const given = Object.entries(s.identity).map(([k, val]) => pill(k === "id_last4" ? "id_last4: ••" + String(val).slice(-2) : `${k}: ${val}`)).join("") || "<span class='note'>nothing yet</span>";
+  $("verify").innerHTML = kv([
+    ["status", pill(v.status, statusCls) + (v.method ? pill("via " + v.method) : "")],
+    ["caller role", esc(s.caller_role)],
+    ["given by caller", given],
+    ["matched", v.matched.map(m => pill(m, "ok")).join("") || "<span class='note'>–</span>"],
+    ["mismatched", v.mismatched.map(m => pill(m, "bad")).join("") || "<span class='note'>–</span>"],
+    ["attempts", `${v.attempts} / 3`],
+    ...(s.caller_role === "representative" ? [["representative", esc(JSON.stringify(s.representative))], ["consent", pill(s.consent.status || "not requested", s.consent.status === "approved" ? "ok" : s.consent.status === "timeout" ? "bad" : "warn") + ` polls: ${s.consent.polls}`]] : []),
+  ]);
+  const hints = s.memory.case_hints;
+  $("memory").innerHTML = kv([
+    ["case hints", Object.keys(hints).length ? Object.entries(hints).map(([k, val]) => pill(`${k}: ${val}`)).join("") : "<span class='note'>none</span>"],
+    ["intent", s.memory.intent ? pill(s.memory.intent) : "<span class='note'>none</span>"],
+    ["selected claim", s.selected_claim_id ? pill(s.selected_claim_id, "ok") : "<span class='note'>none</span>"],
+    ["notes", s.memory.notes.length ? s.memory.notes.map(esc).join("<br>") : "<span class='note'>–</span>"],
+  ]);
+  const emo = s.emotion || {};
+  $("signals").innerHTML = kv([
+    ["emotion", pill(`${emo.label} (${emo.intensity})`, emo.intensity === "high" ? "warn" : "")],
+    ["off-topic count", `${s.counters.off_topic} / 3`],
+    ["verification pushback", `${s.counters.pushback}`],
+    ["facts given to LLM", s.last_facts_keys.length ? s.last_facts_keys.map(k => pill(k)).join("") : pill("none", "ok")],
+  ]);
+  $("directives").textContent = s.last_directives.map(d => "• " + d).join("\n");
+  $("events").textContent = s.events.slice(-14).join("\n");
+  $("tools").textContent = s.tool_log.slice(-10).map(t => `[${t.turn}] ${t.tool}(${JSON.stringify(t.args)}) → ${JSON.stringify(t.result)}`).join("\n");
+  if (s.email && s.email.sent) {
+    $("outboxCard").hidden = false;
+    $("outbox").textContent = `Delivery: ${s.email.delivery}\nTo: ${s.email.address}\nSubject: ${s.email.subject}\n\n${s.email.body}`;
+  } else { $("outboxCard").hidden = true; }
+}
+
+async function loadHealth() {
+  try {
+    const j = await (await fetch("/api/health")).json();
+    $("testdata").innerHTML = `Model: ${esc(j.model)} · token: ${j.llm_token_configured ? "configured" : "missing (use override)"} · email: ${j.smtp_configured ? "real SMTP" : "mock outbox"}<br>` +
+      `Policyholders: ${j.policyholders.map(p => esc(p.name + " (" + p.policy_number + ")")).join(", ")}.<br>` +
+      `Margaret Chen: DOB 1985-03-15, SSN4 4472, phone +16505212836, margaret@email.com. Representative on file: David Chen (son).`;
+  } catch (e) { $("testdata").textContent = "health check failed"; }
+}
+
+SAMPLES.forEach(([label, text]) => {
+  const b = document.createElement("button"); b.textContent = label; b.title = text;
+  b.onclick = () => { $("input").value = text; $("input").focus(); };
+  $("samples").appendChild(b);
+});
+$("send").onclick = send;
+$("input").addEventListener("keydown", (e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(); } });
+$("reset").onclick = newSession;
+$("scenario").onchange = newSession;
+loadHealth();
+newSession();
+</script>
+</body>
+</html>
