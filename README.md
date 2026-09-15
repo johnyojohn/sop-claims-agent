@@ -189,7 +189,9 @@ email that was sent.
 | `ANTHROPIC_WORKSPACE_ID` | Only if the key is not workspace-scoped. |
 | `LLM_MODEL` | Default `claude-opus-5`. |
 | `LLM_EXTRACT_EFFORT`, `LLM_RESPOND_EFFORT` | Thinking effort per call, default `low` for latency. |
-| `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASSWORD`, `EMAIL_FROM` | Real email delivery. A Gmail address with an app password works. Delivery tries implicit TLS on 465 first (587 is blocked by some hosts). When unset, the summary is captured in an on-screen mock outbox instead, so the demo never breaks. |
+| `BREVO_API_KEY`, `EMAIL_FROM` | Real email delivery over HTTPS via Brevo (needed on hosts that block outbound SMTP, such as Render's free tier). |
+| `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASSWORD`, `EMAIL_FROM` | Real email delivery over SMTP (a Gmail app password works locally). Implicit TLS on 465 first, then STARTTLS. |
+| _(neither set)_ | The summary is captured in an on-screen mock outbox instead, so the demo never breaks. |
 | `DEMO_TODAY` | The fixtures are dated early 2026, so the demo clock defaults to `2026-03-02` to keep the appeal deadline in the future. Set it empty to use the real date. |
 
 The hosted demo has real delivery configured, so the summary email arrives at

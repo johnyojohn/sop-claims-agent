@@ -71,6 +71,7 @@ def health():
         "model": settings.model,
         "llm_token_configured": bool(settings.anthropic_api_key),
         "smtp_configured": emailer.configured,
+        "email_transport": emailer.transport,
         "consent_scenarios": list(fixtures.consent_scenarios.keys()),
         "policyholders": [{"name": p["name"], "policy_number": p["policy_number"]} for p in fixtures.policyholders],
     }

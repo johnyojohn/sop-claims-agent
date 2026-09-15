@@ -245,7 +245,7 @@ function render(s) {
 async function loadHealth() {
   try {
     const j = await (await fetch("/api/health")).json();
-    $("testdata").innerHTML = `Model: ${esc(j.model)} · token: ${j.llm_token_configured ? "configured" : "missing (use override)"} · email: ${j.smtp_configured ? "real SMTP" : "mock outbox"}<br>` +
+    $("testdata").innerHTML = `Model: ${esc(j.model)} · token: ${j.llm_token_configured ? "configured" : "missing (use override)"} · email: ${j.email_transport === "mock" ? "mock outbox" : "real (" + j.email_transport + ")"}<br>` +
       `Policyholders: ${j.policyholders.map(p => esc(p.name + " (" + p.policy_number + ")")).join(", ")}.<br>` +
       `Margaret Chen: DOB 1985-03-15, SSN4 4472, phone +16505212836, margaret@email.com. Representative on file: David Chen (son).`;
   } catch (e) { $("testdata").textContent = "health check failed"; }

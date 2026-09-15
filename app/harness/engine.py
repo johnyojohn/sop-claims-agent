@@ -531,8 +531,8 @@ class Engine:
             em.decision = "skip"
             st.phase = "CLOSED"
             st.log("caller skipped the email summary")
-            d.append("They do not want the email. Confirm that no email will be sent, recap the next steps in one "
-                     "sentence, and close warmly.")
+            d.append("They do not want the email. Confirm that no email will be sent and close warmly. You may "
+                     "restate a next step only if one was actually discussed; do not invent follow-ups.")
             return None
         if ex.intent != "none" and ex.in_scope:
             st.phase = "PROCESS_CASE"
