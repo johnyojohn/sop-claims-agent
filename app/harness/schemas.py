@@ -25,7 +25,7 @@ class Representative(BaseModel):
 class CaseHints(BaseModel):
     case_type: Literal["healthcare", "dental", "auto", "unknown"]
     status: Literal["denied", "open", "closed", "unknown"]
-    timeframe: str | None   # e.g. "2026-01", "January", "last year"
+    timeframe: str | None   # month name and/or year as the caller said it, e.g. "January", "Jan 2026", "last year"
     claim_id: str | None
     details: str | None     # free-text gist of what the caller wants
 

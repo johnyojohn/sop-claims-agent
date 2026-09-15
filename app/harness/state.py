@@ -43,7 +43,7 @@ class EmailState:
     decision: str | None = None        # send | skip
     address: str | None = None
     sent: bool = False
-    delivery: str | None = None        # smtp | mock
+    delivery: str | None = None        # smtp | brevo | mock
     subject: str | None = None
     body: str | None = None
 
@@ -89,6 +89,11 @@ class SessionState:
         self.tool_log.append({"turn": self.counters.turns, "tool": name, "args": args, "result": result})
 
     def to_dict(self) -> dict:
+        """JSON view for the UI. Sensitive identifiers are masked; raw extraction output is not exposed."""
         d = asdict(self)
         d["verified"] = self.verified
+        if d["identity"].get("id_last4"):
+            d["identity"]["id_last4"] = "**" + str(d["identity"]["id_last4"])[-2:]
+        if d.get("last_extraction"):
+            d["last_extraction"]["identity"] = {k: bool(v) for k, v in d["last_extraction"]["identity"].items()}
         return d

@@ -14,7 +14,7 @@ Field guidance:
 - emotion / emotion_intensity: the caller's apparent emotional state in this message.
 - refuses_verification: the caller declines or pushes back on giving identity details ("I already told you", "why do you need that", "just tell me").
 - questions_why_verify: the caller asks why verification is needed.
-- wants_human: the caller explicitly asks for a human, agent, representative, supervisor, or a real person.
+- wants_human: the caller explicitly asks to be transferred to or to speak with a human / agent / supervisor / real person NOW. Not true when they ask whether a human will review documents, whether you are a bot, or mention a representative in passing.
 - affirmation: if the agent's last message asked a yes/no question, how the caller answered: yes, no, or unclear.
 - email_decision: "send" if the caller wants the email summary sent, "skip" if they decline it, else "none". Only relevant when the agent offered an email summary.
 - provided_email: an email address the caller gives as the destination for the summary (only when the topic is the summary email; otherwise it belongs in identity.email).
@@ -38,9 +38,9 @@ Today's date is {today}."""
 
 PHASE_RULES = {
     "VERIFY_ID": """CURRENT PHASE: IDENTITY VERIFICATION (strict).
-The caller is NOT verified. You must not confirm or deny that any policy, claim, or person exists, and you must not discuss any claim details, statuses, amounts, dates, or reasons, even if the caller quotes them to you. Do not say what our records contain. You may acknowledge that you have noted what they want to discuss and will pull it up the moment verification is done.
+The caller is NOT verified. You must not discuss any claim details, statuses, amounts, dates, or reasons, even if the caller quotes them to you, and you must not say that an account or policy was found. When an item does not match you may say which item it was (so the caller can correct a typo) but never what we hold on file. You may acknowledge that you have noted what they want to discuss and will pull it up the moment verification is done.
 To verify, we need at least three matching items from: full name, date of birth, phone number on file, email on file, and the last four digits of SSN or national ID. A policy number helps locate the account but does not count as one of the three.
-If someone is calling on behalf of the policyholder, we need their name, their relationship, the policyholder's name, and the policyholder's consent (we send a consent request to the contact details on file and wait for approval).
+If someone is calling on behalf of the policyholder, we need their name, their relationship, the same three matching items about the policyholder, and then the policyholder's consent (we send a consent request to the contact details on file and wait for approval).
 Be efficient: when the caller has already given some items, only ask for what is still missing, and name the acceptable options.""",
     "RESOLVE_INTENT": """CURRENT PHASE: RESOLVE INTENT.
 The caller is verified. Work out which claim they are asking about and what they need. Use what they already told you (it is in the instructions) instead of asking from scratch. You may mention the claims listed in the grounding data by id, type, date, and status. Do not discuss denial reasons, amounts, or documents yet unless they are in the grounding data.""",

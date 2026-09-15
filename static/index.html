@@ -145,6 +145,13 @@ function addMsg(text, cls) {
   div.textContent = text;
   $("msgs").appendChild(div);
   $("msgs").scrollTop = $("msgs").scrollHeight;
+  return div;
+}
+
+async function parseJson(r) {
+  const ct = r.headers.get("content-type") || "";
+  if (ct.includes("application/json")) return r.json();
+  return {detail: `${r.status} ${r.statusText}` + (r.status >= 500 ? " (the free-tier server may be waking up; try again in a moment)" : "")};
 }
 
 function headers() {
@@ -161,7 +168,7 @@ async function newSession() {
   try {
     const r = await fetch("/api/session", {method: "POST", headers: headers(),
       body: JSON.stringify({consent_scenario: $("scenario").value})});
-    const j = await r.json();
+    const j = await parseJson(r);
     if (!r.ok) throw new Error(j.detail || r.statusText);
     session = j.session_id;
     addMsg(j.greeting, "agent");
@@ -173,15 +180,18 @@ async function send() {
   const text = $("input").value.trim();
   if (!text || !session || busy) return;
   busy = true; $("send").disabled = true; $("input").value = "";
-  addMsg(text, "user");
+  const bubble = addMsg(text, "user");
   $("typing").textContent = "Ava is typing…";
   try {
     const r = await fetch(`/api/session/${session}/message`, {method: "POST", headers: headers(), body: JSON.stringify({text})});
-    const j = await r.json();
+    const j = await parseJson(r);
     if (!r.ok) throw new Error(j.detail || r.statusText);
     addMsg(j.reply, "agent");
     render(j.state);
-  } catch (e) { addMsg("Error: " + e.message, "err"); }
+  } catch (e) {
+    bubble.remove(); $("input").value = text;          // nothing was recorded server-side; let them resend
+    addMsg("Error: " + e.message + " (your message was restored, press Send to retry)", "err");
+  }
   finally { busy = false; $("send").disabled = false; $("typing").textContent = ""; $("input").focus(); }
 }
 
@@ -209,7 +219,7 @@ function render(s) {
 
   const v = s.verification;
   const statusCls = v.status === "verified" ? "ok" : v.status === "failed" ? "bad" : v.status === "consent_pending" ? "warn" : "";
-  const given = Object.entries(s.identity).map(([k, val]) => pill(k === "id_last4" ? "id_last4: ••" + String(val).slice(-2) : `${k}: ${val}`)).join("") || "<span class='note'>nothing yet</span>";
+  const given = Object.entries(s.identity).map(([k, val]) => pill(`${k}: ${val}`)).join("") || "<span class='note'>nothing yet</span>";
   $("verify").innerHTML = kv([
     ["status", pill(v.status, statusCls) + (v.method ? pill("via " + v.method) : "")],
     ["caller role", esc(s.caller_role)],
@@ -259,7 +269,7 @@ SAMPLES.forEach(([label, text]) => {
 $("send").onclick = send;
 $("input").addEventListener("keydown", (e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(); } });
 $("reset").onclick = newSession;
-$("scenario").onchange = newSession;
+$("scenario").onchange = () => { if (!session || $("msgs").children.length <= 1 || confirm("Start a new conversation with this consent scenario?")) newSession(); };
 loadHealth();
 newSession();
 </script>

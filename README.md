@@ -36,15 +36,19 @@ uvicorn app.main:app --reload
 ### Auth token
 
 The model token is read from `ANTHROPIC_API_KEY`. The test UI also has an
-"API key override" box that sends an `X-API-Key` header, so a reviewer can use
-the hosted demo with their own key. If your key is not scoped to a workspace,
-Anthropic requires `ANTHROPIC_WORKSPACE_ID` as well.
+"API key override" box that sends an `X-API-Key` header when a session is
+created, so a reviewer can run the hosted demo on their own key (the key is
+bound to that session). If your key is not scoped to a workspace, Anthropic
+requires `ANTHROPIC_WORKSPACE_ID` as well. To gate the app itself, set
+`APP_ACCESS_TOKEN`; every `/api` route then requires `Authorization: Bearer
+<token>`. The public demo leaves this unset so reviewers can just open it.
 
 ### Tests
 
 ```bash
-pytest                                   # 18 harness tests, no API calls (stubbed model)
-python scripts/run_scenarios.py          # scripted end-to-end conversations against the real model
+pytest                                   # harness tests, no API calls (stubbed model)
+python scripts/run_scenarios.py          # scripted end-to-end conversations + invariants, real model
+REMOTE=https://claims-sop-agent.onrender.com python scripts/run_scenarios.py   # same, against the deployment
 ```
 
 The scenario runner writes transcripts to `docs/transcripts/`.
@@ -104,9 +108,10 @@ user text
              does not choose the phase.
    │
    ▼
-5. GUARD     before verification, a regex pass rejects any reply containing a
-             claim id, summary, or denial reason (belt and braces: that data is
-             not in the model's context in the first place).
+5. GUARD     before verification, a substring scan rejects any reply containing
+             a claim id, the opening of a claim summary or denial reason, a
+             deadline, or an amount (belt and braces: that data is not in the
+             model's context in the first place, which is the real guarantee).
 ```
 
 Code map: [`app/harness/engine.py`](app/harness/engine.py) (the harness),
@@ -121,24 +126,29 @@ Code map: [`app/harness/engine.py`](app/harness/engine.py) (the harness),
 
 | Phase | Who decides what | What the model can see |
 |---|---|---|
-| VERIFY_ID (strict) | Harness: lookup, field matching, attempt counting, consent polling, escalation. Model only phrases and handles conversation (clarifications, partial answers, refusals, alternate fields). | No policy or claim data at all. The caller's own claimed values only. |
+| VERIFY_ID (strict) | Harness: lookup, field matching, attempt counting, consent polling, escalation. Model only phrases and handles conversation (clarifications, partial answers, refusals, alternate fields). | No policy or claim data at all. The caller's own claimed values, plus which of them matched or did not. |
 | RESOLVE_INTENT (flexible) | Harness pre-filters the caller's claims using remembered hints; if exactly one matches it auto-selects. Otherwise the model asks, listing claims by id/type/date/status. | Claim summaries (id, type, date, status) for the verified party only. |
 | PROCESS_CASE (flexible, grounded) | Model interprets messy questions, resolves ambiguity, answers follow-ups, and can switch claims when the caller names another one. | Full selected claim record, document guidance and alternatives, follow-up rules, field meanings. Nothing else. |
-| POST_PROCESS (bounded) | Harness offers the email summary exactly once, reads the caller's choice (send / other address / skip), generates the summary from the transcript and claim record, sends it. | Claim record and transcript (for the summary). |
+| POST_PROCESS (bounded) | Harness makes the email offer, then reads the caller's choice (send / other address / skip). An address mentioned before the offer is remembered but never used until the caller says yes. The summary is generated from the transcript and claim record. | Claim record and transcript (for the summary). |
 
 ### Verification rules
 
 - At least **three matching items** from: full name, date of birth, phone on file, email on file, last four of SSN or national ID.
 - The **policy number is a lookup key only**. It locates the record but does not count as one of the three (it is printed on cards and mail, so it proves little about who is speaking). The demo utterance still verifies with exactly three.
 - Matching handles name aliases, phone/email aliases, several date formats, and formatting noise. Two fixture policyholders have a national ID instead of an SSN, so the agent asks for "SSN or national ID".
-- A mismatched item counts as an attempt; the agent says which item did not match without revealing what is on file, and offers alternatives. **Three failed attempts** hand the caller to a human.
+- Three matches verify even if a fourth item is off (an old phone number, say).
+- Every turn in which the caller asserts a value that does not match counts as an attempt, including restating the same wrong value; a turn that only adds other items is not charged. **Three failed attempts** hand the caller to a human. A failed lookup (no such name or policy) is charged the same way.
+- Feedback policy, chosen deliberately: the agent says *which* item did not match so a typo can be corrected, but never what is on file, and never that an account or policy was found. The trade-off (a small existence oracle, bounded by the three-attempt cap) is the same one most call centres make; the stricter "something didn't match" variant is a one-line change to the directive in `_phase_verify_id`.
 - Case hints, intent, and emotion are captured during verification but never acted on until the gate opens.
 
 ### Representative flow (from the fixtures)
 
 If the caller is acting for someone else, the harness looks them up in
-`representatives.json` (name, relationship, policyholder), then sends a
-simulated consent request to the policyholder. Each subsequent turn polls the
+`representatives.json` (name, relationship, policyholder) **and** requires the
+same three matching items about the policyholder (their name plus two of DOB,
+phone, email, ID last four) before anything happens. Being named on file is
+authorisation, not identity. Only then does it send a simulated consent
+request to the policyholder. Each subsequent turn polls the
 consent status following `consent_scenarios.json`: `default` approves on the
 second check; `timeout` never approves, in which case the agent explains the
 alternatives (policyholder calls directly, new request later, human review)
@@ -187,6 +197,7 @@ email that was sent.
 |---|---|
 | `ANTHROPIC_API_KEY` | **Required.** Model auth token. |
 | `ANTHROPIC_WORKSPACE_ID` | Only if the key is not workspace-scoped. |
+| `APP_ACCESS_TOKEN` | Optional bearer token required on every `/api` route. Unset on the public demo. |
 | `LLM_MODEL` | Default `claude-opus-5`. |
 | `LLM_EXTRACT_EFFORT`, `LLM_RESPOND_EFFORT` | Thinking effort per call, default `low` for latency. |
 | `BREVO_API_KEY`, `EMAIL_FROM` | Real email delivery over HTTPS via Brevo (needed on hosts that block outbound SMTP, such as Render's free tier). |
@@ -207,7 +218,38 @@ minute to wake on the first request.
 
 ---
 
-## 6. Design notes and trade-offs
+## 6. Requirements checklist
+
+How each requirement in the brief maps to code and evidence.
+
+| Requirement | Where | Evidence |
+|---|---|---|
+| Fixed 4-phase workflow, LLM converses naturally | `engine.py` phase handlers; `prompts.py` phase rules | every transcript in `docs/transcripts/` |
+| VERIFY_ID: no disclosure and no advance before 3 PII matches (self and representative paths) | `verification.py` (`match_record`, `find_candidate`), `engine._phase_verify_id`, `engine._verify_representative`; claim data absent from the model's context pre-verification; `engine._output_guard` | `tests/test_engine.py::test_no_claim_data_before_verification`, `::test_output_guard_blocks_leak`, `tests/test_engine_edges.py::test_representative_needs_policyholder_pii_before_consent`; scenario runner leak invariant (see §6) |
+| Policy number is a locator, not one of the 3 | `verification.find_candidate` | `tests/test_verification.py::test_policy_number_is_lookup_only` |
+| Natural conversation during verification: clarifications, partial answers, refusals, alternate fields | extractor fields `refuses_verification`, `questions_why_verify`, per-field prompting; `engine._verify_side_notes` | `partial.md`, `angry.md`, `human.md`, `wrong_dob.md` |
+| RESOLVE_INTENT / PROCESS_CASE: interpret messy language, resolve ambiguity, bounded paths | extractor `intent` enum and `case_hints`; `engine._phase_resolve_intent`, `_filter_claims`, claim switching in `_phase_process_case` | `switch.md`, `partial.md`; `test_intent_resolution_lists_and_switches` |
+| Answers only from grounded claim/tool data | `fixtures.py` tools; `facts` dict is the only claim data in the responder prompt; prompt rule 1 | `demo.md` (document guidance, processing time, deadline all from fixtures) |
+| POST_PROCESS: offer email summary; send or skip | `engine._phase_post_process`, `_send_summary`; `emailer.py` | `demo.md` (send), `rep_ok.md` and `switch.md` (skip); `test_post_process_email_and_skip` |
+| Reject out-of-scope politely; escalate to human after repeated retries | extractor `in_scope`; `engine._off_topic` with 3-strike rule | `offtopic.md`; `test_off_topic_counter_and_escalation` |
+| Remember useful info from any phase and use it later | `engine._remember` writes memory every turn (replacing stale hints when the caller changes topic); `_phase_resolve_intent` reads it; reopening a closed conversation keeps the claim just discussed | `demo.md`, `angry.md`, `rep_ok.md` (hint captured during verification, claim auto-selected after); `test_demo_case_verifies_remembers_and_resolves` |
+| Demo test case behaves as specified | all of the above | `demo.md`, first turn |
+| Bonus: recognise emotion, de-escalate, explain why, persuade without bypass, offer alternatives, know when to stop | extractor `emotion`/`emotion_intensity`; `prompts.EMOTION_GUIDANCE`; pushback counter with human-transfer offer; `wants_human` honoured anywhere | `angry.md`, `human.md`, `rep_timeout.md`; `test_human_request_escalates_anywhere` |
+| Representative and consent (implied by the fixtures) | `engine._verify_representative`; `fixtures.consent_sequence` | `rep_ok.md`, `rep_timeout.md`; consent tests |
+| Hosted demo, API token, simple test UI, full workflow visible | Render deployment; `ANTHROPIC_API_KEY` / `X-API-Key`; `static/index.html` with harness debug panel | live URL above |
+
+### Scenario suite with invariants
+
+`scripts/run_scenarios.py` drives nine scripted conversations through the
+engine (locally, or against a deployed instance with `REMOTE=<url>`), writes
+each transcript to `docs/transcripts/`, and checks invariants: the expected
+final phase, verification outcome and method, selected claim, email decision,
+consent status, off-topic count, and, on every turn before verification, that
+the reply contains no claim id, denial reason, deadline, or amount and that no
+claim facts were handed to the model. It exits non-zero on any failure, so it
+doubles as an end-to-end regression test against the real model.
+
+## 7. Design notes and trade-offs
 
 - **Why two LLM calls per turn instead of one tool-using agent?** Separating
   *understanding* (structured extraction) from *speaking* (constrained
@@ -223,8 +265,15 @@ minute to wake on the first request.
 - **Attempt and counter policies are explicit numbers** in `Settings`
   (3 verification attempts, 3 off-topic strikes, 2 pushbacks) so they can be
   tuned without touching prompts.
-- **Sessions are in memory.** Fine for a demo; a real deployment would
-  persist `SessionState` (it is a plain dataclass) and add auth.
+- **Sessions are in memory** (capped at 500, oldest evicted). Fine for a
+  demo; a real deployment would persist `SessionState` (it is a plain
+  dataclass) and put real authentication in front of the API.
+- **State returned to the browser is masked.** ID last-four digits are
+  masked and raw extractor output is reduced to booleans, so the debug panel
+  never echoes sensitive values back.
+- **Failed turns roll back.** If a model call fails, the user's message is
+  removed from the transcript and the UI restores it to the composer, so a
+  retry never duplicates it.
 - **Simulated backends.** Policyholders, claims, representatives, and consent
   are the assessment fixtures; email is real SMTP when configured.
 - **Latency.** Two Opus 5 calls at low effort take a few seconds per turn.

@@ -33,7 +33,7 @@ def norm_dob(s: str | None) -> str | None:
 
 def norm_phone(s: str | None) -> str | None:
     d = re.sub(r"\D", "", s or "")
-    return d[-10:] if len(d) >= 7 else None
+    return d[-10:] if len(d) >= 10 else None   # fewer than 10 digits cannot be a full number on file
 
 
 def norm_email(s: str | None) -> str | None:

@@ -65,19 +65,24 @@ class Engine:
     def handle(self, st: SessionState, text: str) -> TurnResult:
         st.counters.turns += 1
         st.transcript.append({"role": "user", "content": text})
+        try:
+            ex = self.llm.extract(prompts.EXTRACTOR_SYSTEM, self._extract_input(st, text))
+            st.last_extraction = ex.model_dump()
+            self._remember(st, ex)
 
-        ex = self.llm.extract(prompts.EXTRACTOR_SYSTEM, self._extract_input(st, text))
-        st.last_extraction = ex.model_dump()
-        self._remember(st, ex)
+            directives: list[str] = []
+            facts: dict = {}
+            self._run_gates(st, ex, directives, facts)
 
-        directives: list[str] = []
-        facts: dict = {}
-        self._run_gates(st, ex, directives, facts)
-
-        st.last_directives = directives
-        st.last_facts_keys = list(facts.keys())
-        system = self._responder_system(st, ex, directives, facts)
-        reply = self.llm.respond(system, self._api_messages(st))
+            st.last_directives = directives
+            st.last_facts_keys = list(facts.keys())
+            system = self._responder_system(st, ex, directives, facts)
+            reply = self.llm.respond(system, self._api_messages(st))
+        except Exception:
+            # Leave the transcript as it was so a retry does not duplicate the message.
+            st.transcript.pop()
+            st.counters.turns -= 1
+            raise
         reply = self._output_guard(st, reply)
         st.transcript.append({"role": "assistant", "content": reply})
         return TurnResult(reply, st)
@@ -106,8 +111,15 @@ class Engine:
                     st.log(f"identity.{k} updated by caller")
                 st.identity[k] = v.strip()
         if ex.caller_role != "unknown" and st.caller_role != ex.caller_role and st.verification.status != "verified":
+            if st.caller_role != "unknown":
+                # A mid-verification role change invalidates everything gathered for the old path.
+                st.representative = {}
+                st.consent = type(st.consent)(scenario=st.consent.scenario)
+                st.verification = type(st.verification)()
+                st.log(f"caller_role changed {st.caller_role} -> {ex.caller_role}; verification progress reset")
+            else:
+                st.log(f"caller_role = {ex.caller_role}")
             st.caller_role = ex.caller_role
-            st.log(f"caller_role = {ex.caller_role}")
         for k, v in ex.representative.model_dump().items():
             if v:
                 st.representative[k] = v.strip()
@@ -124,7 +136,14 @@ class Engine:
         if hints.details:
             new_hints["details"] = hints.details
         if new_hints:
-            st.memory.case_hints.update(new_hints)
+            old = st.memory.case_hints
+            topic_changed = any(k in new_hints and old.get(k) and old[k] != new_hints[k] for k in ("case_type", "claim_id"))
+            if topic_changed:
+                # The caller is now talking about a different claim: stale status/timeframe must not survive.
+                st.log(f"case hints replaced (topic changed): {old} -> {new_hints}")
+                st.memory.case_hints = dict(new_hints)
+            else:
+                st.memory.case_hints.update(new_hints)
             if st.phase == "VERIFY_ID":
                 st.memory.notes.append(f"Remembered during verification: {new_hints}")
                 st.log(f"stored case hints for later: {new_hints}")
@@ -152,6 +171,8 @@ class Engine:
             d.append(self._phase_reminder(st))
             self._phase_facts(st, facts)
             return
+        if not ex.is_small_talk and st.counters.off_topic:
+            st.counters.off_topic = 0   # "keeps retrying" means consecutive; a real turn resets the strike count
 
         # Phase handlers may chain within a single turn (e.g. verified -> intent resolved -> case loaded).
         for _ in range(4):
@@ -241,24 +262,7 @@ class Engine:
         st.tool("verify_identity", {"fields": res.provided},
                 {"matched": res.matched, "mismatched": res.mismatched})
 
-        if res.mismatched:
-            new = [f for f in res.mismatched if f not in v.seen_mismatches]
-            if new:
-                v.attempts += 1
-                v.seen_mismatches += new
-                st.log(f"mismatch on {new} (attempt {v.attempts})")
-            if v.attempts >= self.s.max_verification_attempts:
-                v.status = "failed"
-                self._escalate(st, d, "identity could not be verified after the maximum number of attempts")
-                return None
-            labels = ", ".join(FIELD_LABELS[f] for f in res.mismatched)
-            d.append(f"The {labels} the caller gave does not match our records. Say that plainly without revealing "
-                     "what we have on file, ask them to double-check it, and offer an alternative item instead "
-                     f"(remaining options: {self._remaining_options(res)}). This is attempt {v.attempts} of "
-                     f"{self.s.max_verification_attempts}; after that we must hand over to a human representative.")
-            self._verify_side_notes(st, ex, d, res.provided)
-            return None
-
+        # Three matching items is the rule; a stray mismatch on a fourth item does not block.
         if len(res.matched) >= self.s.required_pii_matches:
             v.status, v.method, v.party_id = "verified", "self", candidate["party_id"]
             st.phase = "RESOLVE_INTENT"
@@ -268,14 +272,43 @@ class Engine:
                      f"Thank {first} briefly and move straight on to their claim.")
             return "RESOLVE_INTENT"
 
+        if res.mismatched:
+            if self._charge_mismatch(st, ex, res.mismatched):
+                st.log(f"mismatch on {res.mismatched} (attempt {v.attempts})")
+            if v.attempts >= self.s.max_verification_attempts:
+                v.status = "failed"
+                self._escalate(st, d, "identity could not be verified after the maximum number of attempts")
+                return None
+            labels = ", ".join(FIELD_LABELS[f] for f in res.mismatched)
+            d.append(f"The {labels} the caller gave does not match our records. Say that plainly without revealing "
+                     "what we have on file and without confirming that any account was located; ask them to "
+                     "double-check it, or offer another item instead "
+                     f"(options: {self._remaining_options(res)}). This is attempt {v.attempts} of "
+                     f"{self.s.max_verification_attempts}; after that we must hand over to a human representative.")
+            self._verify_side_notes(st, ex, d, res.provided)
+            return None
+
         need = self.s.required_pii_matches - len(res.matched)
         d.append(f"Verification is in progress: {len(res.matched)} of {self.s.required_pii_matches} items confirmed. "
-                 f"Ask for {need} more from: {self._remaining_options(res)}. Do not re-ask for items already given.")
+                 f"Ask for {need} more from: {self._remaining_options(res)}. Do not re-ask for items already given, "
+                 "and do not say that an account or policy was found.")
         self._verify_side_notes(st, ex, d, res.provided)
         return None
 
+    def _charge_mismatch(self, st: SessionState, ex: Extraction, mismatched: list[str]) -> bool:
+        """One attempt per turn in which the caller asserts a value that does not
+        match, including restating the same wrong value. A turn that only supplies
+        other items is not charged for a mismatch reported earlier."""
+        v = st.verification
+        asserted = [f for f in mismatched if getattr(ex.identity, f, None)]
+        if not asserted:
+            return False
+        v.seen_mismatches = sorted(set(v.seen_mismatches) | set(asserted))
+        v.attempts += 1
+        return True
+
     def _remaining_options(self, res) -> str:
-        return ", ".join(FIELD_LABELS[f] for f in PII_FIELDS if f not in res.provided) or "none"
+        return ", ".join(FIELD_LABELS[f] for f in PII_FIELDS if f not in res.matched) or "none"
 
     def _verify_side_notes(self, st: SessionState, ex: Extraction, d: list[str], provided: list[str]) -> None:
         """Emotion, pushback, and memory acknowledgements that ride along with verification."""
@@ -324,8 +357,31 @@ class Engine:
                          "policyholder can call us directly, or can add them as an authorised representative, or "
                          "a human representative can review. Ask them to double-check the names given.")
                 return None
+            holder = self.fx.policyholder_by_party(match["buyer_party_id"])
+            # Being named on file is not identity. The representative must still pass the
+            # same three-item check against the policyholder's record before we contact anyone.
+            ident = dict(st.identity)
+            ident.setdefault("full_name", rep.get("policyholder_name"))
+            res = match_record(ident, holder)
+            v.matched, v.mismatched = res.matched, res.mismatched
+            st.tool("verify_identity", {"fields": res.provided, "on_behalf_of": holder["party_id"]},
+                    {"matched": res.matched, "mismatched": res.mismatched})
+            if len(res.matched) < self.s.required_pii_matches:
+                if res.mismatched and self._charge_mismatch(st, ex, res.mismatched):
+                    st.log(f"representative gave mismatching {res.mismatched} (attempt {v.attempts})")
+                if v.attempts >= self.s.max_verification_attempts:
+                    self._escalate(st, d, "representative could not verify the policyholder's details")
+                    return None
+                need = self.s.required_pii_matches - len(res.matched)
+                bad = (f" The {', '.join(FIELD_LABELS[f] for f in res.mismatched)} given does not match our records; "
+                       "say so without revealing what we hold." if res.mismatched else "")
+                d.append(f"The caller says they are {rep.get('name')}, {rep.get('relationship')} of "
+                         f"{rep.get('policyholder_name')}. Before we can send the policyholder a consent request we "
+                         f"need {need} more of the policyholder's details from: {self._remaining_options(res)}.{bad} "
+                         "Do not confirm whether the policyholder, the policy, or the representative is on file.")
+                self._verify_side_notes(st, ex, d, res.provided)
+                return None
             v.party_id = match["buyer_party_id"]
-            holder = self.fx.policyholder_by_party(v.party_id)
             c.status, c.polls = "pending", 0
             c.request_id = f"CONSENT-{uuid.uuid4().hex[:6].upper()}"
             v.status = "consent_pending"
@@ -366,20 +422,38 @@ class Engine:
             return None
 
         if c.status == "timeout":
-            if ex.affirmation == "yes" or "human" in (ex.off_topic_summary or ""):
-                self._escalate(st, d, "consent timed out; caller chose a human representative")
-                return None
+            # An explicit request for a human is handled by the global gate; anything else re-offers the options.
             d.append("Consent has timed out. Restate the alternatives (policyholder calls directly, new consent "
-                     "request later, or transfer to a human representative) and ask which they would like.")
+                     "request later, or transfer to a human representative) and ask which they would like. "
+                     "Do not disclose any claim details.")
             return None
         return None
 
     # ----------------------------------------------------------- RESOLVE_INTENT
     def _phase_resolve_intent(self, st: SessionState, ex: Extraction, d: list[str], facts: dict) -> str | None:
+        if ex.wants_to_end:
+            if st.selected_claim_id:
+                st.phase = "POST_PROCESS"
+                return "POST_PROCESS"
+            st.phase = "CLOSED"
+            st.log("caller ended the conversation before choosing a claim")
+            d.append("The caller wants to leave without going into a claim. Close warmly and invite them to reach "
+                     "out again; no email summary is needed since nothing was discussed.")
+            return None
+
         claims = self.fx.claims_for_party(st.verification.party_id)
         st.tool("list_claims", {"party_id": st.verification.party_id}, [c["case_id"] for c in claims])
         hints = st.memory.case_hints
         cands = self._filter_claims(claims, hints)
+        if hints and not cands:
+            # Cumulative hints can contradict each other after a correction; fall back to this turn only.
+            turn_hints = self._turn_hints(ex)
+            if turn_hints:
+                cands = self._filter_claims(claims, turn_hints)
+                if cands:
+                    st.memory.case_hints = dict(turn_hints)
+                    hints = st.memory.case_hints
+                    st.log(f"stale hints discarded; using this turn's: {turn_hints}")
 
         chosen = None
         if ex.selected_claim_id and self.fx.get_claim(ex.selected_claim_id) in claims:
@@ -412,6 +486,13 @@ class Engine:
                      "to help them pick one. Do not discuss any claim's details yet.")
         return None
 
+    @staticmethod
+    def _turn_hints(ex: Extraction) -> dict:
+        h = ex.case_hints
+        return {k: v for k, v in {"case_type": h.case_type, "status": h.status, "timeframe": h.timeframe,
+                                  "claim_id": h.claim_id.upper() if h.claim_id else None}.items()
+                if v and v != "unknown"}
+
     def _filter_claims(self, claims: list[dict], hints: dict) -> list[dict]:
         out = claims
         if hints.get("case_type"):
@@ -420,14 +501,21 @@ class Engine:
             out = [c for c in out if c["status"] == hints["status"]]
         tf = (hints.get("timeframe") or "").lower()
         if tf:
-            month = next((m for name, m in MONTHS.items() if name in tf or name[:3] in tf.split()), None)
-            year = re.search(r"20\d\d", tf)
+            month = year = None
+            iso = re.search(r"\b(20\d\d)-(\d\d)\b", tf)            # "2026-01"
+            if iso:
+                year, month = iso.group(1), int(iso.group(2))
+            else:
+                month = next((m for name, m in MONTHS.items()
+                              if re.search(rf"\b{name}\b|\b{name[:3]}\b", tf)), None)
+                y = re.search(r"\b20\d\d\b", tf)
+                year = y.group(0) if y else None
             narrowed = out
             if month:
                 narrowed = [c for c in narrowed if int(c["created_at"][5:7]) == month]
             if year:
-                narrowed = [c for c in narrowed if c["created_at"][:4] == year.group(0)]
-            if narrowed or month or year:
+                narrowed = [c for c in narrowed if c["created_at"][:4] == year]
+            if narrowed:                     # a timeframe that matches nothing is treated as noise, not a veto
                 out = narrowed
         return out
 
@@ -438,25 +526,29 @@ class Engine:
 
         # Claim switching: the caller names another claim, or this turn's hints point uniquely elsewhere.
         switch = None
-        if ex.selected_claim_id and ex.selected_claim_id.upper() != st.selected_claim_id:
-            switch = self.fx.get_claim(ex.selected_claim_id)
-        elif ex.case_hints.claim_id and ex.case_hints.claim_id.upper() != st.selected_claim_id:
-            switch = self.fx.get_claim(ex.case_hints.claim_id)
+        named = (ex.selected_claim_id or ex.case_hints.claim_id or "").upper()
+        if named and named != st.selected_claim_id:
+            switch = self.fx.get_claim(named)
+            if switch not in claims:
+                st.log(f"caller named {named}, which is not on this account")
+                d.append(f"The caller mentioned claim {named}, which is not on this account. Say you do not see a "
+                         "claim with that reference on file and ask them to double-check it; continue with the "
+                         "current claim otherwise.")
+                switch = None
         else:
-            turn_hints = {k: v for k, v in {"case_type": ex.case_hints.case_type, "status": ex.case_hints.status,
-                                             "timeframe": ex.case_hints.timeframe}.items() if v and v != "unknown"}
+            turn_hints = {k: v for k, v in self._turn_hints(ex).items() if k != "claim_id"}
             if turn_hints:
                 c2 = self._filter_claims(claims, turn_hints)
                 if len(c2) == 1 and c2[0]["case_id"] != st.selected_claim_id:
                     switch = c2[0]
-        if switch and switch in claims:
+        if switch:
             st.selected_claim_id = switch["case_id"]
             claim = switch
             st.log(f"switched to claim {claim['case_id']}")
             d.append(f"The caller is now asking about a different claim: {claim['case_id']} ({claim['case_type']}, "
                      f"{claim['status']}). Say you have switched to it, then answer.")
 
-        if ex.wants_to_end and ex.intent == "none":
+        if ex.wants_to_end:
             st.phase = "POST_PROCESS"
             st.log("caller has no further questions; moving to POST_PROCESS")
             return "POST_PROCESS"
@@ -491,20 +583,30 @@ class Engine:
         holder = self.fx.policyholder_by_party(st.verification.party_id)
         on_file = holder["email"] if holder else None
 
-        if not em.offered and ex.email_decision == "none" and not ex.provided_email:
+        if not em.offered:
             em.offered = True
             st.log("email summary offered")
+            if ex.email_decision == "skip":
+                # "That's all, and no email please" in one breath: honour it without re-asking.
+                em.decision = "skip"
+                st.phase = "CLOSED"
+                st.log("caller declined the email summary up front")
+                d.append("They have said they do not want an email summary. Confirm that no email will be sent "
+                         "and close warmly. Do not invent follow-ups.")
+                return None
+            hint = ""
+            if ex.provided_email:
+                em.address = ex.provided_email.strip()
+                hint = f" They mentioned {em.address}; offer to use that address, but wait for a yes."
             d.append("Wrap up: offer to send an email summary of today's conversation (what was discussed, the claim "
                      f"status/outcome, and next steps). It can go to the email on file ({mask_email(on_file)}) or to "
-                     "another address they give you, or they can skip it. Ask which they prefer.")
+                     f"another address they give you, or they can skip it. Ask which they prefer.{hint}")
             return None
-        em.offered = True
 
+        # The offer has been made; only now can an address or a yes trigger a send.
         decision = ex.email_decision
         if decision == "none":
-            if ex.provided_email:
-                decision = "send"
-            elif ex.affirmation == "yes":
+            if ex.provided_email or ex.affirmation == "yes":
                 decision = "send"
             elif ex.affirmation == "no" or ex.wants_to_end:
                 decision = "skip"
@@ -560,17 +662,21 @@ class Engine:
 
     # ------------------------------------------------------------------ CLOSED
     def _phase_closed(self, st: SessionState, ex: Extraction, d: list[str], facts: dict) -> str | None:
-        has_hints = any(v and v != "unknown" for v in ex.case_hints.model_dump().values())
-        if ex.intent != "none" or has_hints:
-            st.memory.case_hints = {}
+        turn_hints = self._turn_hints(ex)
+        identifiers = {k: v for k, v in turn_hints.items() if k in ("case_type", "claim_id", "timeframe")}
+        if ex.intent != "none" or turn_hints:
             st.email = type(st.email)()
-            st.phase = "RESOLVE_INTENT"
             st.log("conversation reopened by the caller")
-            hints = ex.case_hints
-            st.memory.case_hints = {k: v for k, v in {"case_type": hints.case_type, "status": hints.status,
-                                                     "timeframe": hints.timeframe, "claim_id": hints.claim_id,
-                                                     "details": hints.details}.items() if v and v != "unknown"}
-            return "RESOLVE_INTENT"
+            if identifiers or not st.selected_claim_id:
+                # They are pointing at a (possibly different) claim: resolve it again from this turn only.
+                st.memory.case_hints = dict(turn_hints)
+                if ex.case_hints.details:
+                    st.memory.case_hints["details"] = ex.case_hints.details
+                st.phase = "RESOLVE_INTENT"
+                return "RESOLVE_INTENT"
+            # A follow-up about the claim we just discussed: keep it, no need to ask which one.
+            st.phase = "PROCESS_CASE"
+            return "PROCESS_CASE"
         d.append("The conversation is complete. Reply briefly and warmly.")
         return None
 
@@ -611,10 +717,15 @@ class Engine:
         verification, but scan anyway and replace the reply if anything leaks."""
         if st.verified:
             return reply
-        leaks = [c["case_id"] for c in self.fx.claims if c["case_id"].lower() in reply.lower()]
+        low = reply.lower()
+        leaks = [c["case_id"] for c in self.fx.claims if c["case_id"].lower() in low]
         for c in self.fx.claims:
             for key in ("denial_reason", "summary"):
-                if c.get(key) and c[key].lower()[:40] in reply.lower():
+                if c.get(key) and c[key].lower()[:40] in low:
+                    leaks.append(f"{c['case_id']}.{key}")
+            for key in ("appeal_deadline", "allowed_max_amount", "net_pay", "expected_reimbursement_amount"):
+                val = str(c.get(key, "")).lower()
+                if val and val not in ("0.00",) and val in low:
                     leaks.append(f"{c['case_id']}.{key}")
         if leaks:
             st.log(f"OUTPUT GUARD blocked reply mentioning {leaks}")

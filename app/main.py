@@ -5,9 +5,10 @@
   GET  /api/session/{id}            -> state
   GET  /api/health                  -> config status (no secrets)
 
-An API auth token is read from ANTHROPIC_API_KEY. A request may also carry
-X-API-Key to use a different token for that session (handy for reviewers who
-run the hosted demo with their own key)."""
+The model auth token is read from ANTHROPIC_API_KEY. A session-creation
+request may also carry X-API-Key to use a different model token for that
+session (handy for reviewers who run the hosted demo with their own key).
+Optionally, APP_ACCESS_TOKEN protects every /api route with a bearer token."""
 from __future__ import annotations
 
 import logging
@@ -16,7 +17,7 @@ import threading
 from pathlib import Path
 
 import anthropic
-from fastapi import FastAPI, Header, HTTPException
+from fastapi import Depends, FastAPI, Header, HTTPException
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
@@ -41,6 +42,20 @@ app.mount("/static", StaticFiles(directory=STATIC), name="static")
 
 _sessions: dict[str, tuple[SessionState, Engine]] = {}
 _locks: dict[str, threading.Lock] = {}
+MAX_SESSIONS = 500
+ACCESS_TOKEN = os.getenv("APP_ACCESS_TOKEN") or None
+
+
+def require_access(authorization: str | None = Header(default=None)) -> None:
+    if ACCESS_TOKEN and authorization != f"Bearer {ACCESS_TOKEN}":
+        raise HTTPException(401, "missing or invalid access token")
+
+
+def _evict_if_needed() -> None:
+    while len(_sessions) > MAX_SESSIONS:
+        oldest = next(iter(_sessions))
+        _sessions.pop(oldest, None)
+        _locks.pop(oldest, None)
 
 
 def _engine_for(api_key: str | None) -> Engine:
@@ -79,23 +94,24 @@ def health():
     }
 
 
-@app.post("/api/session")
+@app.post("/api/session", dependencies=[Depends(require_access)])
 def new_session(body: NewSession, x_api_key: str | None = Header(default=None)):
     engine = _engine_for(x_api_key)
     st = engine.new_session(body.consent_scenario or "default")
     _sessions[st.session_id] = (st, engine)
     _locks[st.session_id] = threading.Lock()
+    _evict_if_needed()
     return {"session_id": st.session_id, "greeting": st.transcript[0]["content"], "state": st.to_dict()}
 
 
-@app.get("/api/session/{sid}")
+@app.get("/api/session/{sid}", dependencies=[Depends(require_access)])
 def get_session(sid: str):
     if sid not in _sessions:
         raise HTTPException(404, "unknown session")
     return {"state": _sessions[sid][0].to_dict()}
 
 
-@app.post("/api/session/{sid}/message")
+@app.post("/api/session/{sid}/message", dependencies=[Depends(require_access)])
 def post_message(sid: str, body: Message):
     if sid not in _sessions:
         raise HTTPException(404, "unknown session")
@@ -115,11 +131,11 @@ def post_message(sid: str, body: Message):
             raise HTTPException(502, f"Model provider error ({e.status_code}).")
         except Exception as e:  # noqa: BLE001
             log.exception("turn failed")
-            raise HTTPException(500, f"Turn failed: {type(e).__name__}: {e}")
+            raise HTTPException(500, f"Turn failed ({type(e).__name__}); your message was not recorded, please resend.")
     return {"reply": result.reply, "state": st.to_dict()}
 
 
-@app.delete("/api/session/{sid}")
+@app.delete("/api/session/{sid}", dependencies=[Depends(require_access)])
 def delete_session(sid: str):
     _sessions.pop(sid, None)
     _locks.pop(sid, None)

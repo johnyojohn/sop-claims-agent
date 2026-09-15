@@ -92,8 +92,9 @@ def test_representative_consent_flow(harness):
     st = engine.new_session("default")
     llm.queue.append(ex(caller_role="representative",
                         representative={"name": "David Chen", "relationship": "son", "policyholder_name": "Margaret Chen"},
+                        identity={"dob": "1985-03-15", "id_last4": "4472"},
                         case_hints={"case_type": "healthcare", "status": "denied"}))
-    engine.handle(st, "I'm David Chen calling for my mom Margaret Chen")
+    engine.handle(st, "I'm David Chen calling for my mom Margaret Chen, DOB 1985-03-15, last four 4472")
     assert st.verification.status == "consent_pending" and st.consent.status == "pending"
     llm.queue.append(ex(affirmation="yes"))
     engine.handle(st, "can you check?")           # poll 1 -> pending
@@ -108,8 +109,9 @@ def test_representative_consent_timeout(harness):
     engine, llm = harness
     st = engine.new_session("timeout")
     llm.queue.append(ex(caller_role="representative",
-                        representative={"name": "David Chen", "relationship": "son", "policyholder_name": "Margaret Chen"}))
-    engine.handle(st, "David Chen for Margaret Chen")
+                        representative={"name": "David Chen", "relationship": "son", "policyholder_name": "Margaret Chen"},
+                        identity={"dob": "1985-03-15", "id_last4": "4472"}))
+    engine.handle(st, "David Chen for Margaret Chen, DOB 1985-03-15, last four 4472")
     for _ in range(6):
         llm.queue.append(ex())
         engine.handle(st, "again?")
