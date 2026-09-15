@@ -91,9 +91,9 @@ class Emailer:
             mode = "ssl" if port == 465 else "starttls"
             try:
                 if mode == "ssl":
-                    smtp = smtplib.SMTP_SSL(self.s.smtp_host, port, timeout=15, context=ssl.create_default_context())
+                    smtp = smtplib.SMTP_SSL(self.s.smtp_host, port, timeout=8, context=ssl.create_default_context())
                 else:
-                    smtp = smtplib.SMTP(self.s.smtp_host, port, timeout=15)
+                    smtp = smtplib.SMTP(self.s.smtp_host, port, timeout=8)
                     smtp.ehlo()
                     smtp.starttls()
                 with smtp:

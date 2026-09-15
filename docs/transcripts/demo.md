@@ -4,67 +4,67 @@ AGENT: Hi, thanks for calling Northwind Insurance claims support, this is Ava. H
 
 CALLER: I'm the policyholder. My name is Margaret Chen, policy POL-9921. I'm calling about my denied healthcare claim from January. DOB is 1985-03-15, SSN last four is 4472.
 
-AGENT: Thanks Margaret, you're all verified.
+AGENT: Thanks, Margaret, you're all verified. I have claim CL-2048, your healthcare claim opened on January 12, 2026, and it is showing as denied.
 
-I have claim CL-2048 pulled up, the healthcare claim opened on 2026-01-12, and it does show as denied. The denial came down because the review file did not include the pathology report and the treating provider office note.
+The denial came down to missing paperwork: the review file did not include the pathology report or the treating provider office note. Once those two are in, the claim can go back into review.
 
-To get it reconsidered, we need those two documents. The pathology report should show the patient name, specimen details, testing date, and the clinician or lab signature if there is one. The office note should show the patient name, visit date, assessment, and the treatment or follow-up recommendation, ideally all pages together in one PDF. Your best route is the member portal or the claim upload link so they attach straight to the file, and if online upload is not an option we can help arrange fax or mail.
+The easiest way to send them is through the member portal or your claim upload link so they stay attached to the file, and if online upload isn't an option, we can arrange fax or mail. Please note the appeal deadline is March 18, 2026, so sooner is better, ideally within the next week.
 
-One important date: your appeal deadline is 2026-03-18, so the sooner those come in the better. Would it help if I walked you through what to do if the provider cannot get you either document?
+Would it help if I walked you through exactly what each of those two documents needs to show?
 
-    [phase=PROCESS_CASE verified=True claim=CL-2048 hints={'case_type': 'healthcare', 'status': 'denied', 'timeframe': 'January', 'details': 'Denied healthcare claim from January'} emotion=neutral/low facts=['claim', 'document_guidance', 'field_meanings', 'other_claims_on_file'] 10.0s]
+    [phase=PROCESS_CASE verified=True claim=CL-2048 hints={'case_type': 'healthcare', 'status': 'denied', 'timeframe': 'January', 'details': 'Denied healthcare claim from January'} emotion=neutral/low facts=['claim', 'document_guidance', 'field_meanings', 'other_claims_on_file'] 9.7s]
 
 CALLER: So what exactly do I need to send you, and how?
 
-AGENT: Two documents for claim CL-2048, Margaret.
+AGENT: Two documents, Margaret.
 
-First, the pathology report. It needs the patient name, specimen details, the testing date, and the clinician or lab signature if one exists. A high quality scan works as long as the report is complete and fully readable. If your plan requires the original, the portal instructions or our team can confirm the mailing address.
+The pathology report should show the patient name, specimen details, the testing date, and the clinician or lab signature if there is one. A high quality scan works as long as the report is complete and fully readable. If your plan requires the original, the portal instructions or our support team can confirm the mailing address.
 
-Second, the treating provider office note. It needs the patient name, visit date, the assessment, and the treatment or follow-up recommendation. Send all pages together in one PDF if you can.
+The office note from your treating provider should show the patient name, visit date, the assessment, and the treatment or follow-up recommendation. Send all pages together in one PDF if you can.
 
-For both, make sure each page is legible and complete, with the treating provider or facility name visible where possible. Upload them through the member portal or the claim upload link so they stay attached to the claim. If you can't upload online, we can arrange fax or mail.
+For both, make sure each page is legible and complete, with the claim details, dates, and the treating provider or facility name visible where possible. Upload them through the member portal or your claim upload link first; if that isn't available, I can help arrange fax or mail.
 
-After they come in, the claim goes back into review. That usually takes less than a week, though there can be a short intake delay before the status updates, and the team may come back to you if anything is unclear. Try to get them in within about a week, and keep the 2026-03-18 appeal deadline in mind.
+After they come in, the claim goes back into review rather than being decided instantly. Processing is usually less than a week, though intake and another review cycle can add time, and if anything is unclear the team may come back to you for more. There can also be a short delay before the status updates, so if nothing has changed after a few business days, call us and we will confirm the files attached correctly.
 
-Anything else I can help with, or would you like to know what to do if the provider can't produce one of these?
+Anything else I can help you with?
 
-    [phase=PROCESS_CASE verified=True claim=CL-2048 hints={'case_type': 'healthcare', 'status': 'denied', 'timeframe': 'January', 'details': 'Caller asks what documents to send and how to submit them for denied healthcare claim', 'claim_id': 'CL-2048'} emotion=neutral/low facts=['claim', 'document_guidance', 'field_meanings', 'other_claims_on_file'] 10.1s]
+    [phase=PROCESS_CASE verified=True claim=CL-2048 hints={'case_type': 'healthcare', 'status': 'denied', 'timeframe': 'January', 'details': 'Caller asks what documents to send and how to submit them for denied healthcare claim', 'claim_id': 'CL-2048'} emotion=neutral/low facts=['claim', 'document_guidance', 'field_meanings', 'other_claims_on_file'] 10.4s]
 
 CALLER: What if the clinic can't find the office note?
 
-AGENT: If the clinic can't locate the office note, ask them for a complete visit summary, discharge paperwork, or a re-sent copy of the chart, any of those can stand in for the same visit. It often goes smoothest if the clinic faxes or uploads the record directly to us rather than routing it through you.
+AGENT: If the clinic can't locate the full office note, start by asking them for a complete visit summary, discharge paperwork, or a re-sent copy of the chart, any of those can work as a substitute. It often goes smoothest if the provider faxes or uploads the note directly to us.
 
-If none of that is available, then a human claims representative should look at your file and go over what other clinical records might be acceptable. I can get that started for you if the clinic comes back empty handed.
+If none of that is available, then a claims representative can review your file with you and look at what other clinical records might be acceptable. I can set that up for you if it comes to that.
 
-Would you like me to do that now, or would you rather check with them first?
+Does the clinic think the note is truly lost, or just slow to get to you?
 
-    [phase=PROCESS_CASE verified=True claim=CL-2048 hints={'case_type': 'healthcare', 'status': 'denied', 'timeframe': 'January', 'details': 'Asks what to do if clinic cannot locate the provider office note', 'claim_id': 'CL-2048'} emotion=neutral/low facts=['claim', 'document_guidance', 'field_meanings', 'other_claims_on_file'] 8.9s]
+    [phase=PROCESS_CASE verified=True claim=CL-2048 hints={'case_type': 'healthcare', 'status': 'denied', 'timeframe': 'January', 'details': 'Asks what to do if clinic cannot locate the office note needed for the denied claim', 'claim_id': 'CL-2048'} emotion=anxious/low facts=['claim', 'document_guidance', 'field_meanings', 'other_claims_on_file'] 7.6s]
 
 CALLER: How long after I send it will I hear back?
 
-AGENT: Once we have both files, the claim goes back into review rather than being decided on the spot. The average processing time is usually less than a week, though intake and another review cycle can add a bit of time before the status changes. And if either document comes in incomplete or hard to read, the team may come back to you for more before reconsidering the denial.
+AGENT: Once we have both files, the claim goes back into review rather than being finalized right away. The average processing time is usually less than a week, though intake and another review cycle can add some time before the status updates.
 
-One thing to expect: there can be a short intake delay before the portal reflects the upload. If the claim still looks unchanged after a few business days, give us a call and we can confirm the pathology report and office note were attached correctly.
+If anything in the pathology report or office note is incomplete or hard to read, the team may come back to you for more information before reconsidering the denial. And if the claim still looks unchanged after a few business days, give us a call and we can check that both documents attached to the file correctly.
 
-Anything else I can help you with today?
+Just keep the March 18 appeal deadline in mind, that's the date to have things submitted by. Anything else I can help with?
 
-    [phase=PROCESS_CASE verified=True claim=CL-2048 hints={'case_type': 'healthcare', 'status': 'denied', 'timeframe': 'January', 'details': 'Asking how long until response after sending documents for denied healthcare claim', 'claim_id': 'CL-2048'} emotion=neutral/low facts=['claim', 'document_guidance', 'field_meanings', 'other_claims_on_file'] 7.3s]
+    [phase=PROCESS_CASE verified=True claim=CL-2048 hints={'case_type': 'healthcare', 'status': 'denied', 'timeframe': 'January', 'details': 'Asking how long until a response after submitting the missing documents', 'claim_id': 'CL-2048'} emotion=neutral/low facts=['claim', 'document_guidance', 'field_meanings', 'other_claims_on_file'] 8.3s]
 
 CALLER: No, that's everything, thanks.
 
-AGENT: Happy to help, Margaret. Before you go, I can send you an email summary of today's chat, what we discussed, the denial status on claim CL-2048, and the next steps with the two documents and your deadline.
+AGENT: Happy to help, Margaret. Before you go, I can email you a summary of today's conversation, what we covered, the claim status, and the next steps with those two documents.
 
-I can send it to the address on file, m*******@email.com, or to a different address if you prefer, or we can skip it entirely. Which would you like?
+I can send it to the address on file ending in m*******@email.com, or to a different address if you'd rather, or skip it entirely. Which would you prefer?
 
-    [phase=POST_PROCESS verified=True claim=CL-2048 hints={'case_type': 'healthcare', 'status': 'denied', 'timeframe': 'January', 'details': 'Caller has nothing further after document submission guidance.', 'claim_id': 'CL-2048'} emotion=neutral/low facts=[] 6.6s]
+    [phase=POST_PROCESS verified=True claim=CL-2048 hints={'case_type': 'healthcare', 'status': 'denied', 'timeframe': 'January', 'details': 'Denied claim; caller submitting pathology report and office note for appeal', 'claim_id': 'CL-2048'} emotion=neutral/low facts=[] 6.6s]
 
 CALLER: Yes please, send it to johanjohnsjo@gmail.com
 
-AGENT: I'm sorry, that summary didn't go through to johanjohnsjo@gmail.com, the delivery failed on our end.
+AGENT: All set, Margaret. The summary is queued and on its way to johanjohnsjo@gmail.com, and it covers what we discussed today along with the next steps for those two documents.
 
-A representative will make sure you receive it, so you don't need to do anything further. Take care, Margaret, and good luck getting those documents together.
+Best of luck getting everything together, and take care.
 
-    [phase=CLOSED verified=True claim=CL-2048 hints={'case_type': 'healthcare', 'status': 'denied', 'timeframe': 'January', 'details': 'Denied claim; needs pathology report and office note submitted', 'claim_id': 'CL-2048'} emotion=neutral/low facts=['email_summary'] 29.8s]
+    [phase=CLOSED verified=True claim=CL-2048 hints={'case_type': 'healthcare', 'status': 'denied', 'timeframe': 'January', 'details': 'Denied claim; needs pathology report and office note submitted before March 18 appeal deadline', 'claim_id': 'CL-2048'} emotion=neutral/low facts=['email_summary'] 29.8s]
 
 ## Harness events
 
@@ -77,4 +77,32 @@ A representative will make sure you receive it, so you don't need to do anything
 - [turn 4] intent = next_steps
 - [turn 5] caller has no further questions; moving to POST_PROCESS
 - [turn 5] email summary offered
-- [turn 6] summary email -> johanjohnsjo@gmail.com (failed)
+- [turn 6] summary email -> johanjohnsjo@gmail.com (mock)
+
+## Email
+
+To: johanjohnsjo@gmail.com (mock)
+Subject: Your Northwind Claim CL-2048 - Summary and Next Steps
+
+Hi Margaret,
+
+Thanks for calling Northwind Insurance claims support today. We reviewed your denied healthcare claim, the two documents needed to reopen the review, how to send them, and what to expect afterward.
+
+Claim status / outcome
+Claim ID: CL-2048
+Type: Healthcare (opened January 12, 2026)
+Status: Denied
+The denial was because the review file did not include the pathology report or the treating provider office note. Once both are received, the claim goes back into review. The appeal deadline is March 18, 2026. Average processing time after submission is usually less than a week, though intake and another review cycle can add time.
+
+Next steps
+1. Send the pathology report showing the patient name, specimen details, testing date, and clinician or lab signature if one exists. A high-quality scan is acceptable if complete and fully readable; if your plan requires the original, the portal instructions or our support team can confirm the mailing address.
+2. Send the treating provider office note showing patient name, visit date, assessment, and treatment or follow-up recommendation, with all pages together in one PDF if possible.
+3. Upload both through the member portal or your claim upload link; if that is not available, we can arrange fax or mail.
+4. Submit within the next week, and by the March 18, 2026 appeal deadline.
+5. If the clinic cannot find the office note, ask for a complete visit summary, discharge paperwork, or a re-sent copy of the chart. If none are available, a claims representative can review other options with you.
+6. If the status looks unchanged after a few business days, call us and we will confirm both documents attached correctly.
+
+You can reply to this email or call the claims line if you have any questions.
+
+Ava
+Northwind Insurance Claims Support
