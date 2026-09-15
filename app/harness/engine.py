@@ -52,6 +52,9 @@ class Engine:
         self.s = settings
         self.emailer = emailer
 
+    def _today(self) -> str:
+        return self.s.demo_today or date.today().isoformat()
+
     # ------------------------------------------------------------------ API
     def new_session(self, consent_scenario: str = "default") -> SessionState:
         st = SessionState()
@@ -488,13 +491,14 @@ class Engine:
         holder = self.fx.policyholder_by_party(st.verification.party_id)
         on_file = holder["email"] if holder else None
 
-        if not em.offered:
+        if not em.offered and ex.email_decision == "none" and not ex.provided_email:
             em.offered = True
             st.log("email summary offered")
             d.append("Wrap up: offer to send an email summary of today's conversation (what was discussed, the claim "
                      f"status/outcome, and next steps). It can go to the email on file ({mask_email(on_file)}) or to "
                      "another address they give you, or they can skip it. Ask which they prefer.")
             return None
+        em.offered = True
 
         decision = ex.email_decision
         if decision == "none":
@@ -546,7 +550,7 @@ class Engine:
             "caller_first_name": (st.representative.get("name") or holder["name"]).split()[0],
             "policyholder": holder["name"],
             "claim": claim, "document_guidance": self.fx.guidance_for_claim(claim) if claim else None,
-            "today": date.today().isoformat(),
+            "today": self._today(),
         }, indent=2)
         summary = self.llm.summarize(prompts.SUMMARY_SYSTEM, f"DATA:\n{payload}\n\nTRANSCRIPT:\n{convo}")
         result = self.emailer.send(address, summary.subject, summary.body)
@@ -575,7 +579,7 @@ class Engine:
 
     # ----------------------------------------------------------- step 4: respond
     def _responder_system(self, st: SessionState, ex: Extraction, d: list[str], facts: dict) -> str:
-        parts = [prompts.RESPONDER_BASE.format(today=date.today().isoformat()),
+        parts = [prompts.RESPONDER_BASE.format(today=self._today()),
                  "", prompts.PHASE_RULES[st.phase], ""]
         ctx = ["CALLER CONTEXT:"]
         if st.verified:

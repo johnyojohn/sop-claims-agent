@@ -3,6 +3,7 @@ write transcripts to docs/transcripts/. Usage:
 
     python scripts/run_scenarios.py                # all scenarios
     python scripts/run_scenarios.py demo angry     # by name
+    REMOTE=https://host python scripts/run_scenarios.py   # drive a deployed instance over HTTP
 
 Set TEST_EMAIL to have the demo scenario send the real summary email there.
 """
@@ -100,6 +101,7 @@ SCENARIOS: dict[str, dict] = {
             "Check again please.",
             "Ugh. And again?",
             "Once more.",
+            "And now?",
             "Fine, transfer me to a person.",
         ],
     },
@@ -115,32 +117,66 @@ SCENARIOS: dict[str, dict] = {
 }
 
 
-def run(name: str, sc: dict, engine: Engine, out_dir: Path) -> None:
-    st = engine.new_session(sc.get("consent", "default"))
-    lines = [f"# {name}: {sc['title']}", "", f"AGENT: {st.transcript[0]['content']}", ""]
+class RemoteEngine:
+    """Same interface as Engine, but talks to a deployed instance over HTTP."""
+
+    def __init__(self, base: str):
+        import httpx
+        self.c = httpx.Client(base_url=base.rstrip("/"), timeout=180)
+
+    def new_session(self, consent: str) -> dict:
+        j = self.c.post("/api/session", json={"consent_scenario": consent}).json()
+        return {"id": j["session_id"], "state": j["state"], "greeting": j["greeting"]}
+
+    def handle(self, sess: dict, text: str) -> str:
+        r = self.c.post(f"/api/session/{sess['id']}/message", json={"text": text})
+        r.raise_for_status()
+        j = r.json()
+        sess["state"] = j["state"]
+        return j["reply"]
+
+
+def run(name: str, sc: dict, engine, out_dir: Path) -> None:
+    remote = isinstance(engine, RemoteEngine)
+    if remote:
+        sess = engine.new_session(sc.get("consent", "default"))
+        greeting = sess["greeting"]
+    else:
+        st = engine.new_session(sc.get("consent", "default"))
+        greeting = st.transcript[0]["content"]
+    lines = [f"# {name}: {sc['title']}", "", f"AGENT: {greeting}", ""]
     print(f"\n=== {name} ===")
     for t in sc["turns"]:
         t0 = time.time()
-        res = engine.handle(st, t)
+        if remote:
+            reply = engine.handle(sess, t)
+            s = sess["state"]
+        else:
+            reply = engine.handle(st, t).reply
+            s = st.to_dict()
         dt = time.time() - t0
-        lines += [f"CALLER: {t}", "", f"AGENT: {res.reply}", "",
-                  f"    [phase={st.phase} verified={st.verified} claim={st.selected_claim_id} "
-                  f"hints={st.memory.case_hints} emotion={st.emotion['label']}/{st.emotion['intensity']} "
-                  f"facts={st.last_facts_keys} {dt:.1f}s]", ""]
-        print(f"CALLER: {t}\nAGENT: {res.reply}\n   -> {st.phase} ({dt:.1f}s) facts={st.last_facts_keys}")
-    lines += ["## Harness events", ""] + [f"- {e}" for e in st.events]
-    if st.email.sent:
-        lines += ["", "## Email", "", f"To: {st.email.address} ({st.email.delivery})", f"Subject: {st.email.subject}", "", st.email.body]
+        info = (f"phase={s['phase']} verified={s['verified']} claim={s['selected_claim_id']} "
+                f"hints={s['memory']['case_hints']} emotion={s['emotion']['label']}/{s['emotion']['intensity']} "
+                f"facts={s['last_facts_keys']} {dt:.1f}s")
+        lines += [f"CALLER: {t}", "", f"AGENT: {reply}", "", f"    [{info}]", ""]
+        print(f"CALLER: {t}\nAGENT: {reply}\n   -> {info}")
+    lines += ["## Harness events", ""] + [f"- {e}" for e in s["events"]]
+    em = s["email"]
+    if em["sent"]:
+        lines += ["", "## Email", "", f"To: {em['address']} ({em['delivery']})", f"Subject: {em['subject']}", "", em["body"]]
     (out_dir / f"{name}.md").write_text("\n".join(lines), encoding="utf-8")
 
 
 def main() -> None:
     s = get_settings()
-    if not s.anthropic_api_key:
+    if os.getenv("REMOTE"):
+        engine = RemoteEngine(os.environ["REMOTE"])
+    elif not s.anthropic_api_key:
         sys.exit("ANTHROPIC_API_KEY not set")
-    engine = Engine(AnthropicLLM(s.anthropic_api_key, s.model, s.extract_effort, s.respond_effort,
+    else:
+        engine = Engine(AnthropicLLM(s.anthropic_api_key, s.model, s.extract_effort, s.respond_effort,
                                  workspace_id=s.anthropic_workspace_id),
-                    Fixtures(s.fixtures_dir), s, Emailer(s))
+                        Fixtures(s.fixtures_dir), s, Emailer(s))
     out = Path(__file__).resolve().parent.parent / "docs" / "transcripts"
     out.mkdir(parents=True, exist_ok=True)
     names = sys.argv[1:] or list(SCENARIOS)

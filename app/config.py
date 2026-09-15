@@ -26,6 +26,7 @@ class Settings:
     smtp_password: str | None
     email_from: str | None
     fixtures_dir: Path
+    demo_today: str | None = None   # pin 'today' so fixture deadlines read as upcoming
     max_verification_attempts: int = 3
     off_topic_limit: int = 3
     pushback_limit: int = 2
@@ -49,4 +50,5 @@ def get_settings() -> Settings:
         smtp_password=(os.getenv("SMTP_PASSWORD") or "").replace(" ", "") or None,
         email_from=os.getenv("EMAIL_FROM") or os.getenv("SMTP_USER") or None,
         fixtures_dir=Path(os.getenv("FIXTURES_DIR", ROOT / "apps" / "insurance_claims" / "fixtures")),
+        demo_today=os.getenv("DEMO_TODAY", "2026-03-02") or None,
     )

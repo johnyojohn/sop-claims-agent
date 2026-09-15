@@ -150,3 +150,13 @@ def test_post_process_email_and_skip(harness):
     llm.queue.append(ex(email_decision="skip"))
     engine.handle(st2, "no thanks")
     assert st2.phase == "CLOSED" and not st2.email.sent and st2.email.decision == "skip"
+
+
+def test_decline_email_while_ending_closes_immediately(harness):
+    engine, llm = harness
+    st = engine.new_session()
+    llm.queue.append(ex(identity=MARGARET_ID, caller_role="policyholder", case_hints=DENIED_HINT))
+    engine.handle(st, "...")
+    llm.queue.append(ex(wants_to_end=True, email_decision="skip"))
+    engine.handle(st, "that's all, no email needed")
+    assert st.phase == "CLOSED" and st.email.decision == "skip" and not st.email.sent

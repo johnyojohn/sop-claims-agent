@@ -6,7 +6,7 @@ still talking like a person. The LLM interprets and phrases; a deterministic
 harness owns the phase order, the safety gates, the allowed actions, and what
 facts the model is allowed to see on each turn.
 
-- **Hosted demo:** _(URL added at submission)_
+- **Hosted demo:** https://claims-sop-agent.onrender.com (free tier: first request after idle takes about a minute to wake)
 - **Stack:** Python 3.12, FastAPI, Anthropic SDK (Claude Opus 5 by default), one static HTML page. No database, no framework magic.
 
 ---
@@ -189,7 +189,8 @@ email that was sent.
 | `ANTHROPIC_WORKSPACE_ID` | Only if the key is not workspace-scoped. |
 | `LLM_MODEL` | Default `claude-opus-5`. |
 | `LLM_EXTRACT_EFFORT`, `LLM_RESPOND_EFFORT` | Thinking effort per call, default `low` for latency. |
-| `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASSWORD`, `EMAIL_FROM` | Real email delivery. A Gmail address with an app password works. When unset, the summary is captured in an on-screen mock outbox instead, so the demo never breaks. |
+| `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASSWORD`, `EMAIL_FROM` | Real email delivery. A Gmail address with an app password works. Delivery tries implicit TLS on 465 first (587 is blocked by some hosts). When unset, the summary is captured in an on-screen mock outbox instead, so the demo never breaks. |
+| `DEMO_TODAY` | The fixtures are dated early 2026, so the demo clock defaults to `2026-03-02` to keep the appeal deadline in the future. Set it empty to use the real date. |
 
 The hosted demo has real delivery configured, so the summary email arrives at
 whatever address you give the agent.
