@@ -67,6 +67,7 @@ class SessionState:
     consent: Consent = field(default_factory=Consent)
     memory: Memory = field(default_factory=Memory)
     selected_claim_id: str | None = None
+    discussed_claim_ids: list[str] = field(default_factory=list)   # claims already disclosed this session
     emotion: dict = field(default_factory=lambda: {"label": "neutral", "intensity": "low"})
     counters: Counters = field(default_factory=Counters)
     email: EmailState = field(default_factory=EmailState)

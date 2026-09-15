@@ -553,10 +553,17 @@ class Engine:
             st.log("caller has no further questions; moving to POST_PROCESS")
             return "POST_PROCESS"
 
+        if claim["case_id"] not in st.discussed_claim_ids:
+            st.discussed_claim_ids.append(claim["case_id"])
         facts["claim"] = claim
         facts["document_guidance"] = self.fx.guidance_for_claim(claim)
         facts["field_meanings"] = self.fx.claim_schema["field_descriptions"]
         facts["other_claims_on_file"] = [self.fx.claim_summary(c) for c in claims if c["case_id"] != claim["case_id"]]
+        earlier = [self.fx.get_claim(cid) for cid in st.discussed_claim_ids if cid != claim["case_id"]]
+        if earlier:
+            # Records already disclosed to this verified caller stay available, so the model never
+            # "retracts" a correct earlier answer just because the focus moved to another claim.
+            facts["claims_already_discussed_this_call"] = earlier
         st.tool("get_claim", {"case_id": claim["case_id"]}, {"status": claim["status"]})
 
         intent = ex.intent if ex.intent != "none" else st.memory.intent
