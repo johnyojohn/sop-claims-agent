@@ -11,6 +11,7 @@ run the hosted demo with their own key)."""
 from __future__ import annotations
 
 import logging
+import os
 import threading
 from pathlib import Path
 
@@ -68,6 +69,7 @@ def index():
 def health():
     return {
         "ok": True,
+        "version": (os.getenv("RENDER_GIT_COMMIT") or "local")[:12],
         "model": settings.model,
         "llm_token_configured": bool(settings.anthropic_api_key),
         "smtp_configured": emailer.configured,
