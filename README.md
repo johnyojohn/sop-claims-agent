@@ -305,7 +305,7 @@ model handles understanding and phrasing.
 
 - [Rasa CALM](https://rasa.com/docs/learn/concepts/calm/) separates "flows" (business logic) from the LLM, which only classifies what the user wants and phrases replies. Their [comparison against LangGraph](https://github.com/RasaHQ/calm-langgraph-customer-service-comparison) on a customer-support task makes the case for this split.
 - [Parlant](https://github.com/emcie-co/parlant) is an "interaction control harness" that selects the relevant guidelines per turn and injects only those into the model's context, with tracing of every decision.
-- [LangGraph](https://activewizards.com/blog/architecting-event-driven-conversational-agents-with-langgraph/) is the general-purpose way to write the controller as an explicit state graph.
+- [LangGraph](https://docs.langchain.com/oss/python/langgraph/overview) is the general-purpose way to write the controller as an explicit state graph.
 - Research: JourneyBench ([Beyond IVR, EACL 2026](https://arxiv.org/abs/2601.00596)) shows that a dynamic-prompt agent, where the controller rewrites the prompt per state, beats a static prompt on policy adherence so strongly that a small model with it outperforms a larger one without. [FlowAgent](https://arxiv.org/pdf/2502.14345) adds pre- and post-decision controllers that can reject invalid transitions; [PolicyGuide](https://arxiv.org/html/2608.19861v1) and [COVENANT](https://arxiv.org/html/2607.25400) push the same idea to compiled workflows with runtime verification.
 
 This project uses none of them, deliberately. The assessment asks for the
