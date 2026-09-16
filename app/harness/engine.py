@@ -84,6 +84,7 @@ class Engine:
             st.counters.turns -= 1
             raise
         reply = self._output_guard(st, reply)
+        reply = self._grounding_guard(st, reply, facts, system)
         st.transcript.append({"role": "assistant", "content": reply})
         return TurnResult(reply, st)
 
@@ -131,8 +132,9 @@ class Engine:
             new_hints["status"] = hints.status
         if hints.timeframe:
             new_hints["timeframe"] = hints.timeframe
-        if hints.claim_id:
-            new_hints["claim_id"] = hints.claim_id.upper()
+        cid = self._clean_claim_id(st, hints.claim_id)
+        if cid:
+            new_hints["claim_id"] = cid
         if hints.details:
             new_hints["details"] = hints.details
         if new_hints:
@@ -172,7 +174,10 @@ class Engine:
             self._phase_facts(st, facts)
             return
         if not ex.is_small_talk and st.counters.off_topic:
-            st.counters.off_topic = 0   # "keeps retrying" means consecutive; a real turn resets the strike count
+            st.counters.on_topic_streak += 1
+            if st.counters.on_topic_streak >= 2:   # two real turns in a row clears the strikes; alternating does not
+                st.counters.off_topic = 0
+                st.counters.on_topic_streak = 0
 
         # Phase handlers may chain within a single turn (e.g. verified -> intent resolved -> case loaded).
         for _ in range(4):
@@ -183,6 +188,7 @@ class Engine:
 
     def _off_topic(self, st: SessionState, ex: Extraction, d: list[str]) -> None:
         st.counters.off_topic += 1
+        st.counters.on_topic_streak = 0
         n, limit = st.counters.off_topic, self.s.off_topic_limit
         topic = ex.off_topic_summary or "that topic"
         st.log(f"off-topic request #{n} ({topic})")
@@ -388,9 +394,10 @@ class Engine:
             st.tool("request_consent", {"party_id": v.party_id, "rep": match["rep_name"]},
                     {"request_id": c.request_id, "status": "pending"})
             st.log(f"representative matched ({match['relationship']}); consent request {c.request_id} sent")
-            d.append(f"The caller is on file as {holder['name'].split()[0]}'s {match['relationship']}. Explain that "
-                     "we have just sent a consent request to the policyholder using the contact details on file, "
-                     "and that once it is approved you can go through the claim with them. Ask them to let you "
+            d.append("The policyholder's details check out. Explain that we have just sent a consent request "
+                     "to the policyholder using the contact details on file, and that once it is approved you "
+                     "can go through the claim with them. Do not say whether the caller is listed as a "
+                     "representative; that is confirmed only by the policyholder's consent. Ask them to let you "
                      "know when to check on it (the policyholder usually responds within a minute or two).")
             return None
 
@@ -448,6 +455,8 @@ class Engine:
         if hints and not cands:
             # Cumulative hints can contradict each other after a correction; fall back to this turn only.
             turn_hints = self._turn_hints(ex)
+            turn_hints["claim_id"] = self._clean_claim_id(st, turn_hints.get("claim_id"))
+            turn_hints = {k: v for k, v in turn_hints.items() if v}
             if turn_hints:
                 cands = self._filter_claims(claims, turn_hints)
                 if cands:
@@ -486,11 +495,25 @@ class Engine:
                      "to help them pick one. Do not discuss any claim's details yet.")
         return None
 
-    @staticmethod
-    def _turn_hints(ex: Extraction) -> dict:
+    def _clean_claim_id(self, st: SessionState, raw: str | None) -> str | None:
+        """The extractor sometimes files a policy number under claim_id. Only keep values
+        that look like a claim reference and are not the caller's policy number."""
+        if not raw:
+            return None
+        cid = raw.strip().upper().replace(" ", "")
+        pol = re.sub(r"[^A-Z0-9]", "", (st.identity.get("policy_number") or "").upper())
+        if pol and re.sub(r"[^A-Z0-9]", "", cid) == pol:
+            st.log(f"ignored claim_id {cid}: it is the policy number")
+            return None
+        if not re.match(r"^CL-?\d+$", cid):
+            st.log(f"ignored claim_id {cid}: not a claim reference")
+            return None
+        return cid if cid.startswith("CL-") else "CL-" + cid[2:]
+
+    def _turn_hints(self, ex: Extraction) -> dict:
         h = ex.case_hints
         return {k: v for k, v in {"case_type": h.case_type, "status": h.status, "timeframe": h.timeframe,
-                                  "claim_id": h.claim_id.upper() if h.claim_id else None}.items()
+                                  "claim_id": h.claim_id}.items()
                 if v and v != "unknown"}
 
     def _filter_claims(self, claims: list[dict], hints: dict) -> list[dict]:
@@ -526,7 +549,7 @@ class Engine:
 
         # Claim switching: the caller names another claim, or this turn's hints point uniquely elsewhere.
         switch = None
-        named = (ex.selected_claim_id or ex.case_hints.claim_id or "").upper()
+        named = self._clean_claim_id(st, ex.selected_claim_id or ex.case_hints.claim_id) or ""
         if named and named != st.selected_claim_id:
             switch = self.fx.get_claim(named)
             if switch not in claims:
@@ -670,6 +693,8 @@ class Engine:
     # ------------------------------------------------------------------ CLOSED
     def _phase_closed(self, st: SessionState, ex: Extraction, d: list[str], facts: dict) -> str | None:
         turn_hints = self._turn_hints(ex)
+        turn_hints["claim_id"] = self._clean_claim_id(st, turn_hints.get("claim_id"))
+        turn_hints = {k: v for k, v in turn_hints.items() if v}
         identifiers = {k: v for k, v in turn_hints.items() if k in ("case_type", "claim_id", "timeframe")}
         if ex.intent != "none" or turn_hints:
             st.email = type(st.email)()
@@ -719,6 +744,48 @@ class Engine:
         return [{"role": m["role"], "content": m["content"]} for m in msgs]
 
     # ------------------------------------------------------------- step 5: guard
+    _MONTHS_RE = "january|february|march|april|may|june|july|august|september|october|november|december"
+
+    def _grounding_guard(self, st: SessionState, reply: str, facts: dict, system: str) -> str:
+        """After verification the model may only state figures and dates that exist in the
+        grounding data. Any other amount or date triggers one regeneration that names the
+        offending values; if it persists, the values are replaced with a safe phrase."""
+        if not st.verified or not facts:
+            return reply
+        blob = json.dumps(facts).lower()
+        allowed_dates = set(re.findall(r"\d{4}-\d{2}-\d{2}", blob)) | {self._today()}
+        allowed_amounts = {a.replace(",", "") for a in re.findall(r"\d[\d,]*\.\d{2}", blob)}
+
+        def unsupported(text: str) -> list[str]:
+            bad = []
+            for iso in re.findall(r"\b\d{4}-\d{2}-\d{2}\b", text):
+                if iso not in allowed_dates:
+                    bad.append(iso)
+            for m in re.finditer(rf"\b({self._MONTHS_RE})\s+(\d{{1,2}})(?:st|nd|rd|th)?,?\s+(\d{{4}})\b", text, re.I):
+                iso = f"{m.group(3)}-{MONTHS[m.group(1).lower()]:02d}-{int(m.group(2)):02d}"
+                if iso not in allowed_dates:
+                    bad.append(m.group(0))
+            for a in re.findall(r"\$?\d[\d,]*\.\d{2}\b", text):
+                if a.lstrip("$").replace(",", "") not in allowed_amounts:
+                    bad.append(a)
+            return bad
+
+        bad = unsupported(reply)
+        if not bad:
+            return reply
+        st.log(f"GROUNDING GUARD: unsupported values {bad}; regenerating")
+        retry_system = system + ("\n\nCORRECTION: your previous draft contained figures or dates that are not in "
+                                 f"the grounding data: {bad}. Rewrite the reply without them. If the caller asked "
+                                 "for that information, say you do not have it on file and offer a follow-up.")
+        reply2 = self.llm.respond(retry_system, self._api_messages(st))
+        bad2 = unsupported(reply2)
+        if not bad2:
+            return reply2
+        st.log(f"GROUNDING GUARD: still unsupported {bad2}; redacting")
+        for v in bad2:
+            reply2 = reply2.replace(v, "[not on file]")
+        return reply2
+
     def _output_guard(self, st: SessionState, reply: str) -> str:
         """Belt and braces: claim data is never in the model's context before
         verification, but scan anyway and replace the reply if anything leaks."""

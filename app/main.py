@@ -14,10 +14,11 @@ from __future__ import annotations
 import logging
 import os
 import threading
+import time
 from pathlib import Path
 
 import anthropic
-from fastapi import Depends, FastAPI, Header, HTTPException
+from fastapi import Depends, FastAPI, Header, HTTPException, Request
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
@@ -44,6 +45,19 @@ _sessions: dict[str, tuple[SessionState, Engine]] = {}
 _locks: dict[str, threading.Lock] = {}
 MAX_SESSIONS = 500
 ACCESS_TOKEN = os.getenv("APP_ACCESS_TOKEN") or None
+RATE_LIMIT_PER_MIN = int(os.getenv("RATE_LIMIT_PER_MIN", "30"))
+_hits: dict[str, list[float]] = {}
+
+
+def rate_limit(request: Request) -> None:
+    """Simple per-IP sliding window so a public demo cannot be used to drain the model key."""
+    ip = request.headers.get("x-forwarded-for", request.client.host if request.client else "?").split(",")[0].strip()
+    now = time.time()
+    window = [t for t in _hits.get(ip, []) if now - t < 60]
+    if len(window) >= RATE_LIMIT_PER_MIN:
+        raise HTTPException(429, "Too many messages from this address; please wait a minute.")
+    window.append(now)
+    _hits[ip] = window
 
 
 def require_access(authorization: str | None = Header(default=None)) -> None:
@@ -94,7 +108,7 @@ def health():
     }
 
 
-@app.post("/api/session", dependencies=[Depends(require_access)])
+@app.post("/api/session", dependencies=[Depends(require_access), Depends(rate_limit)])
 def new_session(body: NewSession, x_api_key: str | None = Header(default=None)):
     engine = _engine_for(x_api_key)
     st = engine.new_session(body.consent_scenario or "default")
@@ -111,7 +125,7 @@ def get_session(sid: str):
     return {"state": _sessions[sid][0].to_dict()}
 
 
-@app.post("/api/session/{sid}/message", dependencies=[Depends(require_access)])
+@app.post("/api/session/{sid}/message", dependencies=[Depends(require_access), Depends(rate_limit)])
 def post_message(sid: str, body: Message):
     if sid not in _sessions:
         raise HTTPException(404, "unknown session")

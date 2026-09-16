@@ -47,6 +47,7 @@ requires `ANTHROPIC_WORKSPACE_ID` as well. To gate the app itself, set
 
 ```bash
 pytest                                   # harness tests, no API calls (stubbed model)
+LIVE_LLM_TESTS=1 pytest tests/test_extractor_live.py   # extraction-prompt tests against the real model
 python scripts/run_scenarios.py          # scripted end-to-end conversations + invariants, real model
 REMOTE=https://claims-sop-agent.onrender.com python scripts/run_scenarios.py   # same, against the deployment
 ```
@@ -108,10 +109,14 @@ user text
              does not choose the phase.
    │
    ▼
-5. GUARD     before verification, a substring scan rejects any reply containing
-             a claim id, the opening of a claim summary or denial reason, a
-             deadline, or an amount (belt and braces: that data is not in the
-             model's context in the first place, which is the real guarantee).
+5. GUARD     two checks. Before verification, a substring scan rejects any
+             reply containing a claim id, the opening of a claim summary or
+             denial reason, a deadline, or an amount (belt and braces: that data
+             is not in the model's context, which is the real guarantee).
+             After verification, a grounding guard extracts every amount and
+             date in the reply and checks each against the grounding data; an
+             unsupported value triggers one regeneration naming the offending
+             values, and if it persists the value is redacted to "[not on file]".
 ```
 
 Code map: [`app/harness/engine.py`](app/harness/engine.py) (the harness),
@@ -158,8 +163,10 @@ and does not disclose anything. The scenario is selectable in the UI header.
 
 The extractor flags out-of-scope messages. The agent declines politely and
 steers back. On the third off-topic message it asks whether the caller wants a
-human representative; a fourth transfers them. Greetings, thanks, and questions
-about the process itself are in scope.
+human representative; a fourth transfers them. Strikes clear only after two
+consecutive on-topic turns, so alternating on- and off-topic messages cannot
+evade the rule. Greetings, thanks, and questions about the process itself are
+in scope.
 
 ### Emotional support and SOP recovery (bonus)
 
@@ -198,6 +205,7 @@ email that was sent.
 | `ANTHROPIC_API_KEY` | **Required.** Model auth token. |
 | `ANTHROPIC_WORKSPACE_ID` | Only if the key is not workspace-scoped. |
 | `APP_ACCESS_TOKEN` | Optional bearer token required on every `/api` route. Unset on the public demo. |
+| `RATE_LIMIT_PER_MIN` | Per-IP message limit (default 30) so a public demo cannot be used to drain the model key. |
 | `LLM_MODEL` | Default `claude-opus-5`. |
 | `LLM_EXTRACT_EFFORT`, `LLM_RESPOND_EFFORT` | Thinking effort per call, default `low` for latency. |
 | `BREVO_API_KEY`, `EMAIL_FROM` | Real email delivery over HTTPS via Brevo (needed on hosts that block outbound SMTP, such as Render's free tier). |
@@ -230,7 +238,7 @@ How each requirement in the brief maps to code and evidence.
 | Policy number is a locator, not one of the 3 | `verification.find_candidate` | `tests/test_verification.py::test_policy_number_is_lookup_only` |
 | Natural conversation during verification: clarifications, partial answers, refusals, alternate fields | extractor fields `refuses_verification`, `questions_why_verify`, per-field prompting; `engine._verify_side_notes` | `partial.md`, `angry.md`, `human.md`, `wrong_dob.md` |
 | RESOLVE_INTENT / PROCESS_CASE: interpret messy language, resolve ambiguity, bounded paths | extractor `intent` enum and `case_hints`; `engine._phase_resolve_intent`, `_filter_claims`, claim switching in `_phase_process_case` | `switch.md`, `partial.md`; `test_intent_resolution_lists_and_switches` |
-| Answers only from grounded claim/tool data | `fixtures.py` tools; `facts` dict is the only claim data in the responder prompt; prompt rule 1 | `demo.md` (document guidance, processing time, deadline all from fixtures) |
+| Answers only from grounded claim/tool data | `fixtures.py` tools; `facts` dict is the only claim data in the responder prompt; prompt rule 1; `engine._grounding_guard` rejects amounts or dates not present in the facts | `demo.md` (document guidance, processing time, deadline all from fixtures) |
 | POST_PROCESS: offer email summary; send or skip | `engine._phase_post_process`, `_send_summary`; `emailer.py` | `demo.md` (send), `rep_ok.md` and `switch.md` (skip); `test_post_process_email_and_skip` |
 | Reject out-of-scope politely; escalate to human after repeated retries | extractor `in_scope`; `engine._off_topic` with 3-strike rule | `offtopic.md`; `test_off_topic_counter_and_escalation` |
 | Remember useful info from any phase and use it later | `engine._remember` writes memory every turn (replacing stale hints when the caller changes topic); `_phase_resolve_intent` reads it; reopening a closed conversation keeps the claim just discussed | `demo.md`, `angry.md`, `rep_ok.md` (hint captured during verification, claim auto-selected after); `test_demo_case_verifies_remembers_and_resolves` |
@@ -272,6 +280,10 @@ doubles as an end-to-end regression test against the real model.
 - **State returned to the browser is masked.** ID last-four digits are
   masked and raw extractor output is reduced to booleans, so the debug panel
   never echoes sensitive values back.
+- **The extractor is tested live, opt-in.** The stubbed suite proves the
+  gates; `tests/test_extractor_live.py` runs the real extraction prompt on
+  the utterances that matter (demo case, partial answers, representative,
+  off-topic, angry refusal, email decisions) so prompt drift is caught too.
 - **Failed turns roll back.** If a model call fails, the user's message is
   removed from the transcript and the UI restores it to the composer, so a
   retry never duplicates it.

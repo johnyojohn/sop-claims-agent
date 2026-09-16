@@ -2,7 +2,7 @@ services:
   - type: web
     name: claims-sop-agent
     runtime: docker
-    plan: free
+    plan: starter
     healthCheckPath: /api/health
     envVars:
       - key: ANTHROPIC_API_KEY

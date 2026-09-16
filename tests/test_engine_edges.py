@@ -157,7 +157,10 @@ def test_off_topic_counter_resets_on_real_turn(harness):
         engine.handle(st, "trivia?")
     llm.queue.append(ex(identity={"full_name": "Margaret Chen"}, caller_role="policyholder"))
     engine.handle(st, "ok, Margaret Chen")
-    assert st.counters.off_topic == 0
+    assert st.counters.off_topic == 2            # one real turn is not enough (alternating must not evade)
+    llm.queue.append(ex(identity={"dob": "1985-03-15"}))
+    engine.handle(st, "DOB 1985-03-15")
+    assert st.counters.off_topic == 0            # two consecutive real turns clear the strikes
 
 
 def test_failed_turn_leaves_transcript_clean(harness):

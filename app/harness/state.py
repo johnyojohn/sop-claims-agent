@@ -51,6 +51,7 @@ class EmailState:
 @dataclass
 class Counters:
     off_topic: int = 0
+    on_topic_streak: int = 0
     pushback: int = 0
     turns: int = 0
 
