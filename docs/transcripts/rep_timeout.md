@@ -4,69 +4,67 @@ AGENT: Hi, thanks for calling Northwind Insurance claims support, this is Ava. H
 
 CALLER: This is David Chen, son of Margaret Chen, calling about her claim. Her DOB is 1985-03-15, last four 4472.
 
-AGENT: Thanks, David. You're listed on file as Margaret's son, so the next step is her okay to discuss the claim with you. I've just sent a consent request to the contact details we have on file for her.
+AGENT: Thanks, David, that all matches up on Margaret's side.
 
-Once she approves it, I can go through the claim with you. Just say the word when you'd like me to check on it, she'll usually respond within a minute or two.
+I've just sent a consent request to Margaret using the contact details we have on file. Once she approves it, I can go through the claim with you. She'll usually respond within a minute or two, so just let me know when you'd like me to check on it.
 
-    [phase=VERIFY_ID verified=False claim=None hints={'details': "Calling about his mother's claim"} emotion=neutral/low facts=[] 6.8s]
+    [phase=VERIFY_ID verified=False claim=None hints={'details': "Calling about his mother's claim"} emotion=neutral/low facts=[] 6.6s]
 
 CALLER: Any update?
 
-AGENT: I just checked and it hasn't come through yet, so nothing on our end to act on quite yet.
+AGENT: I checked just now and the consent hasn't come through yet. These sometimes take a few minutes to land on her end, so it's nothing to worry about.
 
-Happy to check again in a minute if you'd like to hold on, these usually land pretty quickly once she opens the message.
+Happy to check again in a moment, just say the word.
 
-    [phase=VERIFY_ID verified=False claim=None hints={'details': "Calling about his mother's claim"} emotion=neutral/low facts=[] 6.3s]
+    [phase=VERIFY_ID verified=False claim=None hints={'details': "Calling about his mother's claim"} emotion=neutral/low facts=[] 6.0s]
 
 CALLER: Still nothing?
 
-AGENT: I checked again just now and it still hasn't come through, sorry to keep you waiting.
+AGENT: I checked again just now and it still hasn't come through. Nothing has gone wrong, it just hasn't been approved on her end yet.
 
-Nothing's gone wrong, we just can't move forward until she approves it. I'm happy to keep checking, or if it's easier, I can stay on while you give her a nudge.
+If it's easier, Margaret can approve it whenever she gets a moment and we can pick this straight up. Otherwise say the word and I'll check once more.
 
-    [phase=VERIFY_ID verified=False claim=None hints={'details': "Calling about his mother's claim; awaiting her consent"} emotion=anxious/low facts=[] 6.7s]
+    [phase=VERIFY_ID verified=False claim=None hints={'details': "Calling about his mother's claim"} emotion=anxious/low facts=[] 6.2s]
 
 CALLER: Check again please.
 
-AGENT: Just checked again, and I'm afraid it still hasn't arrived.
+AGENT: I've just checked and there's still no approval on it. I know that's not the answer you were hoping for.
 
-I'll keep an eye on it and check again whenever you'd like. If she's not near her phone or email right now, we can also leave the request open, it stays active, so you can call back once she's approved it and we'll pick up right where we left off.
+I'll keep it open on my side, so if it might help to nudge Margaret to look for the request, I'm happy to check again right after.
 
-    [phase=VERIFY_ID verified=False claim=None hints={'details': "Calling about his mother's claim; awaiting her consent approval"} emotion=neutral/low facts=[] 7.0s]
+    [phase=VERIFY_ID verified=False claim=None hints={'details': 'Waiting on consent approval from policyholder'} emotion=neutral/low facts=[] 6.1s]
 
 CALLER: Ugh. And again?
 
-AGENT: I hear you, this is a frustrating way to spend your morning. I checked once more and it's still not showing as approved.
+AGENT: Checked again, and it's still not through. I'm sorry, I know this is wearing thin when you just want to get on with it.
 
-I'm not going to pretend it'll change in the next thirty seconds, so your call: I can check again shortly, or leave the request open so you can ring back the moment she's approved it and we'll go straight to the claim.
+Nothing's expired on my end, so the moment she approves it I can pull everything up. Want me to try once more in a minute or two?
 
-    [phase=VERIFY_ID verified=False claim=None hints={'details': "Calling about his mother's claim; awaiting her consent approval"} emotion=frustrated/medium facts=[] 6.8s]
+    [phase=VERIFY_ID verified=False claim=None hints={'details': 'Waiting on consent approval from policyholder'} emotion=frustrated/medium facts=[] 6.8s]
 
 CALLER: Once more.
 
-AGENT: Checked again just now, and it's still pending on her end.
+AGENT: I've checked once more and it's still not showing as approved, unfortunately.
 
-That's five or six checks with no change, so I suspect she hasn't seen the message yet. The request stays open, so there's no rush and nothing expires. Would you rather I check once more in a few minutes, or let you go and call us back once she's given the okay?
+Nothing's lost, the request stays live, so whenever Margaret approves it we can go straight into her claim. I can check again shortly, or if you'd prefer, a claims representative can follow up with her directly so you're not sat waiting on me.
 
-    [phase=VERIFY_ID verified=False claim=None hints={'details': "Calling about his mother's claim; awaiting her consent approval"} emotion=frustrated/medium facts=[] 6.6s]
+    [phase=VERIFY_ID verified=False claim=None hints={'details': 'Waiting on policyholder Margaret to approve authorization request'} emotion=frustrated/medium facts=[] 6.6s]
 
 CALLER: And now?
 
-AGENT: I've got an update, though not the one either of us wanted. The consent request has now timed out without being approved, so it's no longer active and I still can't go into her claim details.
+AGENT: I'm afraid that request has now timed out without being approved, so I can't go through Margaret's claim with you on this call. I know that's frustrating after all that waiting.
 
-Nothing's lost, though. There are a few ways forward: Margaret can call us directly herself, or I can send a fresh consent request later when she's near her phone, or I can pass this to one of our claims representatives to follow up with her directly.
+There are a few ways forward: Margaret can call us directly herself, or I can send a fresh consent request whenever she's ready to watch for it, or I can pass this to a claims representative to follow up with her. Which would you prefer?
 
-Which of those would work best for you?
-
-    [phase=VERIFY_ID verified=False claim=None hints={'details': "Calling about his mother's claim; awaiting her consent approval"} emotion=frustrated/medium facts=[] 6.2s]
+    [phase=VERIFY_ID verified=False claim=None hints={'details': "Waiting on Margaret's authorization approval before claim can be accessed"} emotion=frustrated/medium facts=[] 7.1s]
 
 CALLER: Fine, transfer me to a person.
 
-AGENT: Of course, David. I'm passing you over to one of our claims representatives now, and they'll take over this conversation from here.
+AGENT: Of course, David, I'll hand this over now.
 
-They'll need to complete verification first, since we weren't able to confirm authorisation on this call, and they'll follow up using the contact details we have on file. Thanks for your patience with all the back and forth.
+A claims representative will take over this conversation and follow up using the contact details we have on file. Because we weren't able to complete verification here, they'll take care of that step first before going into any details. Thanks for bearing with it.
 
-    [phase=ESCALATED verified=False claim=None hints={'details': "Calling about his mother's claim; awaiting her consent approval"} emotion=frustrated/medium facts=[] 6.6s]
+    [phase=ESCALATED verified=False claim=None hints={'details': "Waiting on Margaret's authorization approval before claim can be accessed"} emotion=frustrated/medium facts=[] 5.5s]
 
 ## Checks
 
@@ -76,9 +74,9 @@ PASS
 
 - [turn 1] caller_role = representative
 - [turn 1] stored case hints for later: {'details': "Calling about his mother's claim"}
-- [turn 1] intent = general_claim_question
-- [turn 1] representative matched (son); consent request CONSENT-E3C862 sent
-- [turn 3] stored case hints for later: {'details': "Calling about his mother's claim; awaiting her consent"}
-- [turn 4] stored case hints for later: {'details': "Calling about his mother's claim; awaiting her consent approval"}
+- [turn 1] representative matched (son); consent request CONSENT-6F55C5 sent
+- [turn 4] stored case hints for later: {'details': 'Waiting on consent approval from policyholder'}
+- [turn 6] stored case hints for later: {'details': 'Waiting on policyholder Margaret to approve authorization request'}
+- [turn 7] stored case hints for later: {'details': "Waiting on Margaret's authorization approval before claim can be accessed"}
 - [turn 7] consent request timed out
 - [turn 8] ESCALATED: caller asked for a human representative

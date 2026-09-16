@@ -4,60 +4,58 @@ AGENT: Hi, thanks for calling Northwind Insurance claims support, this is Ava. H
 
 CALLER: hi i need to check on a claim
 
-AGENT: Hi, happy to help with that, and I have noted you want to check on a claim so I can pull it up as soon as we finish verifying you.
+AGENT: Hi, happy to help with that. I've noted you're calling about a claim, and I'll pull it up as soon as we get you verified.
 
-To start, could you give me your full name, plus your policy number if you have it handy? I'll also need two more details from this list: your date of birth, the phone number or email on file, or the last four digits of your SSN.
+Can I start with your full name, plus your policy number if you have it handy? Along with that, I'll need two of the following: your date of birth, the phone number or email we have on file, or the last four digits of your SSN.
 
-    [phase=VERIFY_ID verified=False claim=None hints={'details': 'Caller wants to check on a claim'} emotion=neutral/low facts=[] 6.4s]
+    [phase=VERIFY_ID verified=False claim=None hints={'details': 'Caller wants to check on a claim'} emotion=neutral/low facts=[] 6.1s]
 
 CALLER: Margaret Chen
 
-AGENT: Thanks, Margaret. I have your name. Could you give me your date of birth next?
+AGENT: Thanks, Margaret. I have your name down. To finish up, I just need two more items from this list: your date of birth, the phone number on file, the email address on file, or the last four digits of your SSN or national ID.
 
-    [phase=VERIFY_ID verified=False claim=None hints={'details': 'Caller wants to check on a claim'} emotion=neutral/low facts=[] 5.3s]
+Whichever two are easiest for you, go ahead.
+
+    [phase=VERIFY_ID verified=False claim=None hints={'details': 'Caller wants to check on a claim'} emotion=neutral/low facts=[] 6.0s]
 
 CALLER: why do you need all that?
 
-AGENT: I hear you, it's annoying to go through this when you just want an update.
+AGENT: I get it, it feels like a lot when you just want a quick answer.
 
-The reason is that claim details are protected personal information, so we're required to confirm we're speaking with the policyholder before we share anything, which also keeps someone else from getting at your file.
+The reason is that claim details are protected personal information, so we're required to confirm we're speaking with the policyholder before sharing anything, which also keeps someone else from getting at your file. I have your name already, so I just need two more: your date of birth, the phone number on file, the email on file, or the last four digits of your SSN. Whichever two are easiest.
 
-I just need two more items, and you can pick whichever are easiest: your date of birth, the phone number on file, the email on file, or the last four digits of your SSN.
-
-    [phase=VERIFY_ID verified=False claim=None hints={'details': 'Caller wants to check on a claim'} emotion=frustrated/low facts=[] 6.3s]
+    [phase=VERIFY_ID verified=False claim=None hints={'details': 'Caller wants to check on a claim'} emotion=frustrated/low facts=[] 6.5s]
 
 CALLER: ok my phone is 650-521-2836
 
-AGENT: Thanks, that one matches. Just one more item and we're set: your date of birth, the email on file, or the last four digits of your SSN, whichever is easiest.
+AGENT: Thanks, Margaret, that one checks out. One last item and we're done: your date of birth, the email address on file, or the last four digits of your SSN or national ID. Whichever you prefer.
 
-    [phase=VERIFY_ID verified=False claim=None hints={'details': 'Caller wants to check on a claim'} emotion=neutral/low facts=[] 5.1s]
+    [phase=VERIFY_ID verified=False claim=None hints={'details': 'Caller wants to check on a claim'} emotion=neutral/low facts=[] 5.5s]
 
 CALLER: margaret@email.com
 
-AGENT: That matches too, so you're all verified. Thanks for bearing with me, Margaret.
+AGENT: Perfect, that matches. Thanks for bearing with me, Margaret, you're all verified.
 
-I have four claims on your file, so let me know which one you mean:
+I'm seeing a few claims on your file, so I want to make sure I'm looking at the right one:
 
-- CL-2102, auto, opened 2026-02-28, currently open
-- CL-2048, healthcare, opened 2026-01-12, denied
-- CL-1899, dental, opened 2025-11-03, closed
-- CL-2011, healthcare, opened 2025-01-28, closed
+- CL-2102, auto, opened February 28, 2026, currently open
+- CL-2048, healthcare, opened January 12, 2026, denied
+- CL-1899, dental, opened November 3, 2025, closed
+- CL-2011, healthcare, opened January 28, 2025, closed
 
-Which one would you like to check on?
+Which of those did you want to check on?
 
-    [phase=RESOLVE_INTENT verified=True claim=None hints={'details': 'Caller wants to check on a claim'} emotion=neutral/low facts=['claims_on_file', 'matching_claims'] 7.6s]
+    [phase=RESOLVE_INTENT verified=True claim=None hints={'details': 'Caller wants to check on a claim'} emotion=neutral/low facts=['claims_on_file', 'matching_claims'] 6.8s]
 
 CALLER: the auto one
 
-AGENT: I have CL-2102 pulled up, the auto claim opened on 2026-02-28.
+AGENT: Got it, that's CL-2102, the auto claim opened February 28, 2026.
 
-It's currently open, which means it's still in progress and no payment has been finalized yet, the net paid amount is showing 0.00. The expected reimbursement on file is 3,200.00, against an allowed maximum of 3,500.00.
+It's currently open, which means it's in progress with the review team and no payment has been issued yet. The record shows an expected reimbursement of $3,200 against an allowed maximum of $3,500, though that's an expectation rather than a final decision. Once any outstanding files are in and readable, reviews typically take less than a week, and there may be another review cycle before the status changes.
 
-One thing worth knowing for auto claims: keep the repair estimate and the accident photos tied to the same incident, so the reviewer can match the visible damage to the quote. Once documents are received and readable, processing is usually less than a week.
+Anything else I can check for you on this one?
 
-Is there anything else I can check for you on this one?
-
-    [phase=PROCESS_CASE verified=True claim=CL-2102 hints={'details': 'Caller selected the auto claim CL-2102', 'case_type': 'auto', 'status': 'open', 'claim_id': 'CL-2102'} emotion=neutral/low facts=['claim', 'document_guidance', 'field_meanings', 'other_claims_on_file'] 7.7s]
+    [phase=PROCESS_CASE verified=True claim=CL-2102 hints={'details': 'Caller selected the auto claim CL-2102', 'case_type': 'auto', 'status': 'open', 'timeframe': 'February 2026', 'claim_id': 'CL-2102'} emotion=neutral/low facts=['claim', 'document_guidance', 'field_meanings', 'other_claims_on_file'] 8.0s]
 
 ## Checks
 
@@ -67,8 +65,9 @@ PASS
 
 - [turn 1] stored case hints for later: {'details': 'Caller wants to check on a claim'}
 - [turn 1] intent = status_inquiry
-- [turn 2] caller_role = policyholder
 - [turn 2] stored case hints for later: {'details': 'Caller wants to check on a claim'}
+- [turn 3] stored case hints for later: {'details': 'Caller wants to check on a claim'}
 - [turn 3] verification pushback #1
+- [turn 5] caller_role = policyholder
 - [turn 5] VERIFIED via ['full_name', 'phone', 'email']; party P9
 - [turn 6] claim CL-2102 selected (from what the caller told you earlier)
