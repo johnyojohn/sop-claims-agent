@@ -13,13 +13,19 @@ facts the model is allowed to see on each turn.
 
 ## 1. Quick start
 
-You need an Anthropic API key. Email delivery is optional (see §5).
+You need an Anthropic API key. **If the key is not scoped to a workspace**
+(console keys created at the organisation level), Anthropic rejects every call
+until you also set `ANTHROPIC_WORKSPACE_ID` (console → Settings → Workspaces,
+starts with `wrkspc_`); the server tells you so with a 400 if that is the
+case. Email delivery is optional (see §5); with nothing configured the summary
+lands in the on-screen mock outbox.
 
 ### Run with Docker
 
 ```bash
 docker build -t sop-agent .
 docker run -p 8000:8000 -e ANTHROPIC_API_KEY=sk-ant-... sop-agent
+# add -e ANTHROPIC_WORKSPACE_ID=wrkspc_... if your key is not workspace-scoped
 ```
 
 Open http://localhost:8000.

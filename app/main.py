@@ -142,6 +142,10 @@ def post_message(sid: str, body: Message):
             raise HTTPException(429, "Rate limited by the model provider; try again in a moment.")
         except anthropic.APIStatusError as e:
             log.exception("model call failed")
+            if "workspace" in str(e.message).lower():
+                raise HTTPException(400, "Your Anthropic key is not scoped to a workspace. Either create a "
+                                         "workspace-scoped key or set ANTHROPIC_WORKSPACE_ID (see README, "
+                                         "Auth token).")
             raise HTTPException(502, f"Model provider error ({e.status_code}).")
         except Exception as e:  # noqa: BLE001
             log.exception("turn failed")
