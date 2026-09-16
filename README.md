@@ -279,3 +279,31 @@ doubles as an end-to-end regression test against the real model.
   are the assessment fixtures; email is real SMTP when configured.
 - **Latency.** Two Opus 5 calls at low effort take a few seconds per turn.
   `LLM_MODEL=claude-sonnet-5` is a drop-in faster option.
+
+---
+
+## 8. Related frameworks and why this is hand-rolled
+
+This problem has a name in the literature: workflow-guided or policy-adherent
+agents, where business logic must constrain an LLM without turning it back
+into an IVR script. The design here follows the pattern that both products and
+papers have converged on: a deterministic controller owns the workflow and
+decides, per turn, what the model sees and what it is allowed to do, while the
+model handles understanding and phrasing.
+
+- [Rasa CALM](https://rasa.com/docs/learn/concepts/calm/) separates "flows" (business logic) from the LLM, which only classifies what the user wants and phrases replies. Their [comparison against LangGraph](https://github.com/RasaHQ/calm-langgraph-customer-service-comparison) on a customer-support task makes the case for this split.
+- [Parlant](https://github.com/emcie-co/parlant) is an "interaction control harness" that selects the relevant guidelines per turn and injects only those into the model's context, with tracing of every decision.
+- [LangGraph](https://activewizards.com/blog/architecting-event-driven-conversational-agents-with-langgraph/) is the general-purpose way to write the controller as an explicit state graph.
+- Research: JourneyBench ([Beyond IVR, EACL 2026](https://arxiv.org/abs/2601.00596)) shows that a dynamic-prompt agent, where the controller rewrites the prompt per state, beats a static prompt on policy adherence so strongly that a small model with it outperforms a larger one without. [FlowAgent](https://arxiv.org/pdf/2502.14345) adds pre- and post-decision controllers that can reject invalid transitions; [PolicyGuide](https://arxiv.org/html/2608.19861v1) and [COVENANT](https://arxiv.org/html/2607.25400) push the same idea to compiled workflows with runtime verification.
+
+This project uses none of them, deliberately. The assessment asks for the
+harness design itself, and every mechanism that matters fits in one readable
+file: per-turn structured extraction, deterministic gates, per-phase
+directives and facts, and a post-hoc guard. That is the dynamic-prompt agent
+from JourneyBench and the pre/post controller from FlowAgent, written out
+rather than imported. In a production system with dozens of flows I would
+adopt one of the frameworks above (Parlant or Rasa CALM if the team is
+support-focused, LangGraph if it already lives in that ecosystem) for
+persistence, tracing, and flow authoring, and port the gate logic into it;
+the phase table in §3 maps one-to-one onto their concepts.
+
